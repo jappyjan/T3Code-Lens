@@ -6,6 +6,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAppStore } from '../store';
+import { QrScanner } from '../components/QrScanner';
+import { parsePairingUrl } from '../utils/parse-pairing-url';
 import type { STTProvider } from '../stt/use-voice-input';
 import type { RuntimeMode } from '../t3/types';
 
@@ -14,24 +16,23 @@ export function SettingsPage() {
 
   const [pairingToken, setPairingToken] = useState('');
   const [pairingStatus, setPairingStatus] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
 
   // ── Pairing flow ─────────────────────────────────────────────────
 
-  const handlePair = async () => {
-    if (!settings.serverUrl || !pairingToken) return;
+  const pairWithToken = async (serverUrl: string, token: string) => {
     setPairingStatus('Pairing...');
-
     try {
-      const url = settings.serverUrl.replace(/\/$/, '');
+      const url = serverUrl.replace(/\/$/, '');
       const res = await fetch(`${url}/api/auth/bootstrap/bearer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: pairingToken }),
+        body: JSON.stringify({ credential: token }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
-      setSettings({ sessionToken: data.sessionToken });
+      setSettings({ serverUrl: url, sessionToken: data.sessionToken });
       setPairingStatus('Paired successfully!');
       setPairingToken('');
       connect();
@@ -40,10 +41,30 @@ export function SettingsPage() {
     }
   };
 
+  const handlePair = () => {
+    if (!settings.serverUrl || !pairingToken) return;
+    pairWithToken(settings.serverUrl, pairingToken);
+  };
+
+  const handleQrScan = (value: string) => {
+    setShowScanner(false);
+    const parsed = parsePairingUrl(value);
+    if (parsed) {
+      setSettings({ serverUrl: parsed.serverUrl });
+      pairWithToken(parsed.serverUrl, parsed.token);
+    } else {
+      setPairingStatus('Invalid QR code — expected a t3 pairing URL');
+    }
+  };
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-4">
+      {showScanner && (
+        <QrScanner onScan={handleQrScan} onClose={() => setShowScanner(false)} />
+      )}
+
       <div className="max-w-md mx-auto space-y-6 pb-8">
         {/* Header */}
         <div className="flex items-center gap-4 py-4">
@@ -53,22 +74,46 @@ export function SettingsPage() {
 
         {/* ── T3Code Server ─────────────────────────────────────── */}
         <Section title="T3Code Server">
-          <Field label="Server URL">
-            <input
-              type="url"
-              placeholder="http://192.168.1.100:3773"
-              value={settings.serverUrl}
-              onChange={(e) => setSettings({ serverUrl: e.target.value })}
-              className={inputClass}
-            />
-          </Field>
-
           {!settings.sessionToken ? (
             <>
+              {/* QR scan button — primary action */}
+              <button
+                onClick={() => setShowScanner(true)}
+                className="w-full bg-blue-600 hover:bg-blue-500 rounded-lg py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <rect x="14" y="14" width="3" height="3" />
+                  <line x1="21" y1="14" x2="21" y2="17" />
+                  <line x1="14" y1="21" x2="17" y2="21" />
+                  <line x1="21" y1="21" x2="21" y2="21" />
+                </svg>
+                Scan QR Code from t3 serve
+              </button>
+
+              <div className="flex items-center gap-3 text-xs text-gray-600">
+                <div className="flex-1 border-t border-gray-800" />
+                <span>or enter manually</span>
+                <div className="flex-1 border-t border-gray-800" />
+              </div>
+
+              {/* Manual entry */}
+              <Field label="Server URL">
+                <input
+                  type="url"
+                  placeholder="http://192.168.1.100:3773"
+                  value={settings.serverUrl}
+                  onChange={(e) => setSettings({ serverUrl: e.target.value })}
+                  className={inputClass}
+                />
+              </Field>
+
               <Field label="Pairing Token">
                 <input
                   type="text"
-                  placeholder="Paste token from `t3 serve` output"
+                  placeholder="Paste token from t3 serve output"
                   value={pairingToken}
                   onChange={(e) => setPairingToken(e.target.value)}
                   className={inputClass}
@@ -77,9 +122,9 @@ export function SettingsPage() {
               <button
                 onClick={handlePair}
                 disabled={!settings.serverUrl || !pairingToken}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg py-2.5 text-sm font-medium transition-colors"
+                className="w-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 rounded-lg py-2.5 text-sm font-medium transition-colors"
               >
-                Pair Device
+                Pair Manually
               </button>
               {pairingStatus && (
                 <p className="text-xs text-gray-400">{pairingStatus}</p>
