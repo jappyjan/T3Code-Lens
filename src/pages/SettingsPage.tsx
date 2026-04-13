@@ -145,16 +145,20 @@ export function SettingsPage() {
                       HTTPS, so browsers block connections to plain HTTP servers.
                     </p>
                     <p>
-                      Use an <strong>https://</strong> URL for your T3Code server. If
-                      you use Tailscale, run on the T3Code machine:
+                      Expose T3Code over HTTPS with Tailscale Funnel (uses
+                      trusted Let's Encrypt certs):
                     </p>
                     <code className="block bg-gray-950 rounded px-2 py-1.5 text-green-400 font-mono select-all">
-                      tailscale serve --bg http://127.0.0.1:{port}
+                      tailscale funnel --bg {port}
                     </code>
                     <p>
-                      This proxies to HTTPS on port 443. Then use
+                      Then use
                       <strong> https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net</strong> as
-                      the server URL here (no port needed).
+                      the server URL here.
+                    </p>
+                    <p className="text-gray-600">
+                      Note: Funnel makes T3Code reachable from the public
+                      internet. T3Code's own auth protects access.
                     </p>
                   </div>
                 );

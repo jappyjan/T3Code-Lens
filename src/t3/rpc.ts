@@ -45,9 +45,9 @@ export class T3Rpc {
           `T3Code server at ${parsed.host} is plain HTTP. ` +
           `Browsers do not allow insecure WebSocket (ws://) connections from ` +
           `secure pages.\n\n` +
-          `Fix: serve T3Code over HTTPS. If you use Tailscale, run:\n` +
-          `  tailscale serve --bg http://127.0.0.1:${port}\n` +
-          `Then connect using your https://<machine>.ts.net URL (no port needed).`,
+          `Fix: expose T3Code over HTTPS with Tailscale Funnel:\n` +
+          `  tailscale funnel --bg ${port}\n` +
+          `Then connect using your https://<machine>.ts.net URL.`,
         ),
       );
     }
