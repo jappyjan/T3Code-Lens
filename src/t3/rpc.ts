@@ -46,8 +46,8 @@ export class T3Rpc {
           `Browsers do not allow insecure WebSocket (ws://) connections from ` +
           `secure pages.\n\n` +
           `Fix: serve T3Code over HTTPS. If you use Tailscale, run:\n` +
-          `  tailscale serve --bg --https=${port} http://127.0.0.1:${port}\n` +
-          `Then connect using your https://<machine>.ts.net:${port} URL.`,
+          `  tailscale serve --bg http://127.0.0.1:${port}\n` +
+          `Then connect using your https://<machine>.ts.net URL (no port needed).`,
         ),
       );
     }
@@ -56,9 +56,11 @@ export class T3Rpc {
       const url = new URL(this.wsUrl);
       url.searchParams.set('token', this.wsToken);
 
+      let connected = false;
       this.ws = new WebSocket(url.toString());
 
       this.ws.onopen = () => {
+        connected = true;
         this.reconnectAttempts = 0;
         this.startPing();
         resolve();
@@ -69,14 +71,17 @@ export class T3Rpc {
       };
 
       this.ws.onerror = () => {
-        reject(new Error('WebSocket connection error'));
+        if (!connected) {
+          reject(new Error('WebSocket connection failed — check the server URL'));
+        }
       };
 
       this.ws.onclose = () => {
         this.stopPing();
         this.onDisconnect?.();
-        // Don't reconnect if the initial connect was rejected (e.g. mixed content)
-        if (this.reconnectAttempts >= 0) {
+        // Only attempt reconnect if we connected successfully before.
+        // Failed initial connections (wrong URL, SSL errors) should not retry.
+        if (connected) {
           this.attemptReconnect();
         }
       };
