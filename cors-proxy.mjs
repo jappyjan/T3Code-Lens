@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // ── T3Code CORS Proxy ──────────────────────────────────────────────
-// A minimal reverse proxy that adds CORS headers to T3Code responses.
-// Run alongside T3Code so the Lens app (on a different origin) can
-// reach the HTTP auth endpoints.
+// A minimal reverse proxy that adds CORS headers to T3Code HTTP
+// responses and transparently forwards WebSocket connections.
 //
 // Usage:
 //   node cors-proxy.mjs                     # proxy :3774 → :3773
@@ -14,7 +13,7 @@
 //   # or: tailscale funnel --bg 3774
 
 import { createServer, request as httpRequest } from 'node:http';
-import { URL } from 'node:url';
+import { createConnection } from 'node:net';
 
 const PROXY_PORT = parseInt(process.argv[2] || process.env.PROXY_PORT || '3774', 10);
 const T3_PORT    = parseInt(process.argv[3] || process.env.T3_PORT    || '3773', 10);
@@ -28,20 +27,16 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // ── Proxy to T3Code ──────────────────────────────────────────────
+  // ── Proxy HTTP to T3Code ─────────────────────────────────────────
   const proxyReq = httpRequest(
     {
       hostname: T3_HOST,
       port: T3_PORT,
       path: req.url,
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: `${T3_HOST}:${T3_PORT}`,
-      },
+      headers: { ...req.headers, host: `${T3_HOST}:${T3_PORT}` },
     },
     (proxyRes) => {
-      // Merge CORS headers into the response
       const headers = { ...proxyRes.headers, ...corsHeaders(req) };
       res.writeHead(proxyRes.statusCode ?? 200, headers);
       proxyRes.pipe(res, { end: true });
@@ -49,7 +44,7 @@ const server = createServer((req, res) => {
   );
 
   proxyReq.on('error', (err) => {
-    console.error(`[proxy] ${req.method} ${req.url} → error: ${err.message}`);
+    console.error(`[http] ${req.method} ${req.url} → ${err.message}`);
     res.writeHead(502, corsHeaders(req));
     res.end(JSON.stringify({ error: 'T3Code unreachable', detail: err.message }));
   });
@@ -57,41 +52,47 @@ const server = createServer((req, res) => {
   req.pipe(proxyReq, { end: true });
 });
 
-// ── WebSocket upgrade — pass through to T3Code ────────────────────
+// ── WebSocket upgrade — raw TCP passthrough ────────────────────────
+// Instead of parsing/reconstructing the HTTP upgrade, we open a raw
+// TCP socket to T3Code and forward the original upgrade request bytes
+// verbatim. This avoids any header mangling issues.
+
 server.on('upgrade', (req, socket, head) => {
-  const proxyReq = httpRequest({
-    hostname: T3_HOST,
-    port: T3_PORT,
-    path: req.url,
-    method: req.method,
-    headers: {
-      ...req.headers,
-      host: `${T3_HOST}:${T3_PORT}`,
-    },
-  });
+  const proxySocket = createConnection({ host: T3_HOST, port: T3_PORT }, () => {
+    // Reconstruct the original HTTP upgrade request from rawHeaders
+    // to preserve exact header casing and order.
+    const headerLines = [];
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      const name = req.rawHeaders[i];
+      const value = req.rawHeaders[i + 1];
+      // Rewrite Host header to point at T3Code
+      if (name.toLowerCase() === 'host') {
+        headerLines.push(`Host: ${T3_HOST}:${T3_PORT}`);
+      } else {
+        headerLines.push(`${name}: ${value}`);
+      }
+    }
 
-  proxyReq.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
-    // Forward the 101 Switching Protocols response
-    const statusLine = `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`;
-    const headerLines = Object.entries(proxyRes.headers)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join('\r\n');
-    socket.write(statusLine + headerLines + '\r\n\r\n');
+    const requestLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+    proxySocket.write(requestLine + headerLines.join('\r\n') + '\r\n\r\n');
 
-    if (proxyHead.length) socket.write(proxyHead);
+    // Forward any buffered data from the client
+    if (head && head.length) {
+      proxySocket.write(head);
+    }
 
+    // Pipe everything bidirectionally — the 101 response from T3Code
+    // flows back to the browser, then WebSocket frames flow both ways.
     proxySocket.pipe(socket);
     socket.pipe(proxySocket);
-
-    proxySocket.on('error', () => socket.destroy());
-    socket.on('error', () => proxySocket.destroy());
   });
 
-  proxyReq.on('error', () => {
+  proxySocket.on('error', (err) => {
+    console.error(`[ws] upgrade ${req.url} → ${err.message}`);
     socket.destroy();
   });
 
-  proxyReq.end();
+  socket.on('error', () => proxySocket.destroy());
 });
 
 server.listen(PROXY_PORT, '0.0.0.0', () => {
