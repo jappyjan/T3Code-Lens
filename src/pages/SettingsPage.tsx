@@ -171,7 +171,9 @@ export function SettingsPage() {
               {showTokenInput && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-3">
                   <p className="text-xs text-gray-500">
-                    Run this on the T3Code machine to get a session token:
+                    While <span className="text-gray-400">t3 serve</span> is running,
+                    open a <span className="text-gray-400">second terminal</span> on the
+                    same machine and run:
                   </p>
                   <code className="block bg-gray-950 rounded px-2 py-1.5 text-xs text-green-400 font-mono select-all">
                     t3 auth session issue --token-only
