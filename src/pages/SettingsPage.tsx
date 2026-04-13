@@ -141,24 +141,23 @@ export function SettingsPage() {
                 return (
                   <div className="text-xs bg-yellow-950 border border-yellow-900 text-yellow-400 rounded-lg px-3 py-2 space-y-1.5">
                     <p>
-                      <strong>HTTPS/HTTP mismatch:</strong> This page is served over
-                      HTTPS, so browsers block connections to plain HTTP servers.
+                      <strong>HTTPS required:</strong> This app is served over HTTPS,
+                      so the T3Code server must be reachable over HTTPS too.
                     </p>
                     <p>
-                      Expose T3Code over HTTPS with Tailscale Funnel (uses
-                      trusted Let's Encrypt certs):
+                      Easiest fix &mdash; run <strong>cloudflared</strong> on the
+                      T3Code machine (free, no account needed):
                     </p>
                     <code className="block bg-gray-950 rounded px-2 py-1.5 text-green-400 font-mono select-all">
-                      tailscale funnel --bg {port}
+                      cloudflared tunnel --url http://localhost:{port}
                     </code>
                     <p>
-                      Then use
-                      <strong> https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net</strong> as
-                      the server URL here.
+                      It prints an <strong>https://...trycloudflare.com</strong> URL
+                      &mdash; paste that here as the server URL.
                     </p>
-                    <p className="text-gray-600">
-                      Note: Funnel makes T3Code reachable from the public
-                      internet. T3Code's own auth protects access.
+                    <p className="text-gray-600 pt-1">
+                      Install: <code className="text-gray-500">brew install cloudflared</code> (macOS)
+                      or <code className="text-gray-500">apt install cloudflared</code> (Linux)
                     </p>
                   </div>
                 );
