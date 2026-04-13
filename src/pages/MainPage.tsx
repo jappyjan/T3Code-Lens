@@ -96,7 +96,7 @@ export function MainPage() {
           label="Server"
           value={connecting ? 'Connecting...' : connected ? 'Connected' : 'Disconnected'}
           color={connected ? 'green' : 'red'}
-          detail={connectionError ?? settings.serverUrl || 'Not configured'}
+          detail={connectionError ?? (settings.serverUrl || 'Not configured')}
         />
 
         {/* Current state */}
