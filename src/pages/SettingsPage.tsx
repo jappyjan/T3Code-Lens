@@ -1,0 +1,236 @@
+// ── Settings Page (Phone Only) ──────────────────────────────────────
+// Configuration for the T3Code server connection, speech recognition
+// provider, and agent defaults. This is the only screen the user
+// needs the phone for — everything else happens on the glasses.
+
+import { useState } from 'react';
+import { Link } from 'react-router';
+import { useAppStore } from '../store';
+import type { STTProvider } from '../stt/use-voice-input';
+import type { RuntimeMode } from '../t3/types';
+
+export function SettingsPage() {
+  const { settings, setSettings, connect, disconnect, connected, connecting } = useAppStore();
+
+  const [pairingToken, setPairingToken] = useState('');
+  const [pairingStatus, setPairingStatus] = useState('');
+
+  // ── Pairing flow ─────────────────────────────────────────────────
+
+  const handlePair = async () => {
+    if (!settings.serverUrl || !pairingToken) return;
+    setPairingStatus('Pairing...');
+
+    try {
+      const url = settings.serverUrl.replace(/\/$/, '');
+      const res = await fetch(`${url}/api/auth/bootstrap/bearer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: pairingToken }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+      setSettings({ sessionToken: data.sessionToken });
+      setPairingStatus('Paired successfully!');
+      setPairingToken('');
+      connect();
+    } catch (err) {
+      setPairingStatus(err instanceof Error ? err.message : 'Pairing failed');
+    }
+  };
+
+  // ── Render ───────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white p-4">
+      <div className="max-w-md mx-auto space-y-6 pb-8">
+        {/* Header */}
+        <div className="flex items-center gap-4 py-4">
+          <Link to="/" className="text-blue-400 text-sm hover:text-blue-300">&larr; Back</Link>
+          <h1 className="text-xl font-bold">Settings</h1>
+        </div>
+
+        {/* ── T3Code Server ─────────────────────────────────────── */}
+        <Section title="T3Code Server">
+          <Field label="Server URL">
+            <input
+              type="url"
+              placeholder="http://192.168.1.100:3773"
+              value={settings.serverUrl}
+              onChange={(e) => setSettings({ serverUrl: e.target.value })}
+              className={inputClass}
+            />
+          </Field>
+
+          {!settings.sessionToken ? (
+            <>
+              <Field label="Pairing Token">
+                <input
+                  type="text"
+                  placeholder="Paste token from `t3 serve` output"
+                  value={pairingToken}
+                  onChange={(e) => setPairingToken(e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <button
+                onClick={handlePair}
+                disabled={!settings.serverUrl || !pairingToken}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg py-2.5 text-sm font-medium transition-colors"
+              >
+                Pair Device
+              </button>
+              {pairingStatus && (
+                <p className="text-xs text-gray-400">{pairingStatus}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2.5">
+                <span className="text-xs text-green-400">Device Paired</span>
+                <button
+                  onClick={() => { disconnect(); setSettings({ sessionToken: '' }); }}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Unpair
+                </button>
+              </div>
+              <button
+                onClick={connected ? disconnect : () => connect()}
+                disabled={connecting}
+                className={`w-full rounded-lg py-2.5 text-sm font-medium transition-colors ${
+                  connected
+                    ? 'bg-red-900 hover:bg-red-800 text-red-200'
+                    : 'bg-green-900 hover:bg-green-800 text-green-200'
+                }`}
+              >
+                {connecting ? 'Connecting...' : connected ? 'Disconnect' : 'Connect'}
+              </button>
+            </>
+          )}
+        </Section>
+
+        {/* ── Speech Recognition ────────────────────────────────── */}
+        <Section title="Speech Recognition">
+          <Field label="Provider">
+            <select
+              value={settings.sttProvider}
+              onChange={(e) => setSettings({ sttProvider: e.target.value as STTProvider })}
+              className={inputClass}
+            >
+              <option value="local">Local (Web Speech API — Free)</option>
+              <option value="deepgram">Deepgram (Cloud Streaming)</option>
+              <option value="soniox">Soniox (Cloud Streaming)</option>
+              <option value="whisper-api">Whisper API (Cloud Batch)</option>
+            </select>
+          </Field>
+
+          {settings.sttProvider !== 'local' && (
+            <Field label="API Key">
+              <input
+                type="password"
+                placeholder="Enter API key"
+                value={settings.sttApiKey}
+                onChange={(e) => setSettings({ sttApiKey: e.target.value })}
+                className={inputClass}
+              />
+            </Field>
+          )}
+
+          <Field label="Language">
+            <select
+              value={settings.sttLanguage}
+              onChange={(e) => setSettings({ sttLanguage: e.target.value })}
+              className={inputClass}
+            >
+              <option value="en-US">English (US)</option>
+              <option value="en-GB">English (UK)</option>
+              <option value="de-DE">German</option>
+              <option value="fr-FR">French</option>
+              <option value="es-ES">Spanish</option>
+              <option value="it-IT">Italian</option>
+              <option value="pt-BR">Portuguese (BR)</option>
+              <option value="ja-JP">Japanese</option>
+              <option value="zh-CN">Chinese (Simplified)</option>
+            </select>
+          </Field>
+        </Section>
+
+        {/* ── Agent Defaults ────────────────────────────────────── */}
+        <Section title="Agent Defaults">
+          <Field label="Runtime Mode">
+            <select
+              value={settings.defaultRuntimeMode}
+              onChange={(e) => setSettings({ defaultRuntimeMode: e.target.value as RuntimeMode })}
+              className={inputClass}
+            >
+              <option value="auto-accept-edits">Auto-accept Edits</option>
+              <option value="approval-required">Approval Required</option>
+              <option value="full-access">Full Access</option>
+            </select>
+          </Field>
+
+          <Field label="Default Model">
+            <select
+              value={`${settings.defaultModel.provider}:${settings.defaultModel.model}`}
+              onChange={(e) => {
+                const [provider, model] = e.target.value.split(':');
+                if (provider && model) {
+                  setSettings({
+                    defaultModel: {
+                      provider: provider as 'claudeAgent' | 'codex',
+                      model,
+                    },
+                  });
+                }
+              }}
+              className={inputClass}
+            >
+              <option value="claudeAgent:claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claudeAgent:claude-opus-4-6">Claude Opus 4.6</option>
+              <option value="claudeAgent:claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+              <option value="codex:gpt-5.4">Codex GPT-5.4</option>
+            </select>
+          </Field>
+
+          <Field label="Default Workspace Root">
+            <input
+              type="text"
+              placeholder="/home/user"
+              value={settings.defaultWorkspaceRoot}
+              onChange={(e) => setSettings({ defaultWorkspaceRoot: e.target.value })}
+              className={inputClass}
+            />
+          </Field>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+// ── Shared Components ──────────────────────────────────────────────
+
+const inputClass =
+  'w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm ' +
+  'focus:outline-none focus:border-blue-500 transition-colors';
+
+function Section(props: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        {props.title}
+      </h2>
+      {props.children}
+    </section>
+  );
+}
+
+function Field(props: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1">{props.label}</label>
+      {props.children}
+    </div>
+  );
+}
