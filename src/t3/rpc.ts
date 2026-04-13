@@ -54,7 +54,7 @@ export class T3Rpc {
 
     return new Promise((resolve, reject) => {
       const url = new URL(this.wsUrl);
-      url.searchParams.set('token', this.wsToken);
+      url.searchParams.set('wsToken', this.wsToken);
 
       let connected = false;
       this.ws = new WebSocket(url.toString());

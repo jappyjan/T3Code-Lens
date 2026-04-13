@@ -25,22 +25,35 @@ async function main() {
   const proxyHttp = await testHttp(HOST, PROXY_PORT, '/');
   console.log(`   Proxy   (${PROXY_PORT}): ${proxyHttp}`);
 
-  // 2. Get a WS token
-  let wsToken = TOKEN;
-  if (!wsToken) {
-    console.log('\n2. Getting WS token via proxy...');
-    wsToken = await getWsToken();
-    if (wsToken) {
-      console.log(`   ✓ Got WS token: ${wsToken.slice(0, 30)}...`);
-    } else {
-      console.log('   ✗ Could not get WS token, using session token');
-    }
+  // 2. Get a WS token (requires session token first)
+  if (!TOKEN) {
+    console.log('\n2. No session token provided — cannot test WebSocket');
+    console.log('   Usage: node test-ws.mjs <session-token>');
+    return;
+  }
+  console.log(`\n2. Session token: ${TOKEN.slice(0, 30)}...`);
+
+  // Get a short-lived WS token from T3Code directly
+  console.log('   Getting WS token via T3Code...');
+  const wsTokenDirect = await getWsToken(T3_PORT);
+  if (wsTokenDirect) {
+    console.log(`   ✓ Got WS token (direct): ${wsTokenDirect.slice(0, 30)}...`);
   } else {
-    console.log(`\n2. Using provided token: ${wsToken.slice(0, 30)}...`);
+    console.log('   ✗ Could not get WS token from T3Code');
   }
 
+  // Also try via proxy
+  console.log('   Getting WS token via proxy...');
+  const wsTokenProxy = await getWsToken(PROXY_PORT);
+  if (wsTokenProxy) {
+    console.log(`   ✓ Got WS token (proxy):  ${wsTokenProxy.slice(0, 30)}...`);
+  } else {
+    console.log('   ✗ Could not get WS token from proxy');
+  }
+
+  const wsToken = wsTokenDirect || wsTokenProxy;
   if (!wsToken) {
-    console.log('   No token available — cannot test WebSocket');
+    console.log('   No WS token available — cannot test WebSocket');
     return;
   }
 
@@ -67,12 +80,12 @@ function testHttp(host, port, path) {
   });
 }
 
-function getWsToken() {
-  // Try to get a ws-token via the proxy (which adds CORS headers)
+function getWsToken(port) {
+  // Get a ws-token from T3Code (or proxy) using the session token
   return new Promise((resolve) => {
     const req = request({
       hostname: HOST,
-      port: PROXY_PORT,
+      port,
       path: '/api/auth/ws-token',
       method: 'POST',
       headers: { Authorization: `Bearer ${TOKEN}` },
@@ -98,8 +111,11 @@ function getWsToken() {
 
 function testWebSocket(host, port, token, prefix) {
   return new Promise((resolve) => {
-    const path = `/ws?token=${encodeURIComponent(token)}`;
-    const key = Buffer.from(Math.random().toString(36)).toString('base64');
+    const path = `/ws?wsToken=${encodeURIComponent(token)}`;
+    // Sec-WebSocket-Key must be a base64-encoded 16-byte value (RFC 6455)
+    const keyBytes = new Uint8Array(16);
+    for (let i = 0; i < 16; i++) keyBytes[i] = Math.floor(Math.random() * 256);
+    const key = Buffer.from(keyBytes).toString('base64');
 
     const socket = createConnection({ host, port }, () => {
       console.log(`${prefix}TCP connected`);
@@ -142,6 +158,12 @@ function testWebSocket(host, port, token, prefix) {
         const headers = text.slice(0, headerEnd);
         const statusLine = headers.split('\r\n')[0];
         console.log(`${prefix}Response: ${statusLine}`);
+
+        // Show response body for non-101 responses
+        if (!statusLine.includes('101')) {
+          const body = text.slice(headerEnd + 4);
+          if (body.length > 0) console.log(`${prefix}  Body: ${body.slice(0, 200)}`);
+        }
 
         if (statusLine.includes('101')) {
           upgraded = true;
