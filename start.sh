@@ -75,7 +75,7 @@ trap cleanup EXIT INT TERM
 # ── Start T3Code ────────────────────────────────────────────────────
 
 echo "[1/3] Starting T3Code on port $T3_PORT..."
-npx t3 serve --host "$T3_HOST" --port "$T3_PORT" --no-browser --cwd "$T3_CWD" &
+npx t3 serve --host "$T3_HOST" --port "$T3_PORT" --no-browser "$T3_CWD" &
 PIDS+=($!)
 
 # Wait for T3Code to be ready
