@@ -68,10 +68,19 @@ export class T3Client {
   }
 
   private async connectWebSocket(): Promise<void> {
-    const wsToken = await this.getWsToken();
     const wsUrl = this.serverUrl.replace(/^http/, 'ws') + '/ws';
 
-    this.rpc = new T3Rpc(wsUrl, wsToken);
+    // Try to get a short-lived WS token via HTTP first.
+    // If that fails (e.g. CORS when hosted on a different origin),
+    // fall back to connecting with the bearer session token directly.
+    let token = this.sessionToken;
+    try {
+      token = await this.getWsToken();
+    } catch {
+      // CORS or network error — fall back to session token
+    }
+
+    this.rpc = new T3Rpc(wsUrl, token);
     this.rpc.onDisconnect = () => this.onConnectionChange?.(false);
     this.rpc.onReconnect = () => {
       this.onConnectionChange?.(true);

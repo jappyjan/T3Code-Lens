@@ -17,8 +17,11 @@ export function SettingsPage() {
   const [pairingToken, setPairingToken] = useState('');
   const [pairingStatus, setPairingStatus] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [directToken, setDirectToken] = useState('');
+  const [manualServerUrl, setManualServerUrl] = useState(settings.serverUrl);
 
-  // ── Pairing flow ─────────────────────────────────────────────────
+  // ── Pairing via HTTP (works same-origin, blocked by CORS cross-origin) ──
 
   const pairWithToken = async (serverUrl: string, token: string) => {
     setPairingStatus('Pairing...');
@@ -37,24 +40,45 @@ export function SettingsPage() {
       setPairingToken('');
       connect();
     } catch (err) {
-      setPairingStatus(err instanceof Error ? err.message : 'Pairing failed');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
+        setPairingStatus(
+          'CORS error — the T3Code server blocked the cross-origin request. ' +
+          'Use "Session Token" mode below instead.',
+        );
+        setShowTokenInput(true);
+      } else {
+        setPairingStatus(msg);
+      }
     }
   };
 
   const handlePair = () => {
-    if (!settings.serverUrl || !pairingToken) return;
-    pairWithToken(settings.serverUrl, pairingToken);
+    if (!manualServerUrl || !pairingToken) return;
+    pairWithToken(manualServerUrl, pairingToken);
   };
 
   const handleQrScan = (value: string) => {
     setShowScanner(false);
     const parsed = parsePairingUrl(value);
     if (parsed) {
+      setManualServerUrl(parsed.serverUrl);
       setSettings({ serverUrl: parsed.serverUrl });
       pairWithToken(parsed.serverUrl, parsed.token);
     } else {
       setPairingStatus('Invalid QR code — expected a t3 pairing URL');
     }
+  };
+
+  // ── Direct session token (bypasses CORS — only needs WebSocket) ──
+
+  const handleDirectToken = () => {
+    if (!manualServerUrl || !directToken.trim()) return;
+    const url = manualServerUrl.replace(/\/$/, '');
+    setSettings({ serverUrl: url, sessionToken: directToken.trim() });
+    setDirectToken('');
+    setPairingStatus('Token saved — connecting...');
+    connect();
   };
 
   // ── Render ───────────────────────────────────────────────────────
@@ -99,17 +123,18 @@ export function SettingsPage() {
                 <div className="flex-1 border-t border-gray-800" />
               </div>
 
-              {/* Manual entry */}
+              {/* Server URL — shared by both manual methods */}
               <Field label="Server URL">
                 <input
                   type="url"
                   placeholder="http://192.168.1.100:3773"
-                  value={settings.serverUrl}
-                  onChange={(e) => setSettings({ serverUrl: e.target.value })}
+                  value={manualServerUrl}
+                  onChange={(e) => setManualServerUrl(e.target.value)}
                   className={inputClass}
                 />
               </Field>
 
+              {/* Pairing token method */}
               <Field label="Pairing Token">
                 <input
                   type="text"
@@ -121,13 +146,53 @@ export function SettingsPage() {
               </Field>
               <button
                 onClick={handlePair}
-                disabled={!settings.serverUrl || !pairingToken}
+                disabled={!manualServerUrl || !pairingToken}
                 className="w-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 rounded-lg py-2.5 text-sm font-medium transition-colors"
               >
                 Pair Manually
               </button>
+
               {pairingStatus && (
-                <p className="text-xs text-gray-400">{pairingStatus}</p>
+                <p className="text-xs text-yellow-400 bg-yellow-950 border border-yellow-900 rounded-lg px-3 py-2">{pairingStatus}</p>
+              )}
+
+              {/* Session token fallback — works cross-origin */}
+              <div className="flex items-center gap-3 text-xs text-gray-600 pt-2">
+                <div className="flex-1 border-t border-gray-800" />
+                <button
+                  onClick={() => setShowTokenInput(!showTokenInput)}
+                  className="text-blue-400 hover:text-blue-300 whitespace-nowrap"
+                >
+                  {showTokenInput ? 'hide' : 'CORS issues? use session token'}
+                </button>
+                <div className="flex-1 border-t border-gray-800" />
+              </div>
+
+              {showTokenInput && (
+                <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-3">
+                  <p className="text-xs text-gray-500">
+                    Run this on the T3Code machine to get a session token:
+                  </p>
+                  <code className="block bg-gray-950 rounded px-2 py-1.5 text-xs text-green-400 font-mono select-all">
+                    t3 auth session issue --token-only
+                  </code>
+                  <Field label="Session Token">
+                    <input
+                      type="text"
+                      placeholder="Paste the session token here"
+                      value={directToken}
+                      onChange={(e) => setDirectToken(e.target.value)}
+                      className={inputClass}
+                    />
+                  </Field>
+                  <button
+                    onClick={handleDirectToken}
+                    disabled={!manualServerUrl || !directToken.trim()}
+                    className="w-full bg-green-900 hover:bg-green-800 disabled:bg-gray-800 disabled:text-gray-600 text-green-200 rounded-lg py-2.5 text-sm font-medium transition-colors"
+                  >
+                    Connect with Session Token
+                  </button>
+                </div>
               )}
             </>
           ) : (
