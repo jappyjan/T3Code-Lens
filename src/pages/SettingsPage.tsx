@@ -6,78 +6,24 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAppStore } from '../store';
-import { QrScanner } from '../components/QrScanner';
-import { parsePairingUrl } from '../utils/parse-pairing-url';
 import type { STTProvider } from '../stt/use-voice-input';
 import type { RuntimeMode } from '../t3/types';
+
+const START_CMD = 'bash <(curl -fsSL https://raw.githubusercontent.com/jappyjan/T3Code-Lens/main/start.sh)';
 
 export function SettingsPage() {
   const { settings, setSettings, connect, disconnect, connected, connecting } = useAppStore();
 
-  const [pairingToken, setPairingToken] = useState('');
-  const [pairingStatus, setPairingStatus] = useState('');
-  const [showScanner, setShowScanner] = useState(false);
-  const [showTokenInput, setShowTokenInput] = useState(false);
-  const [directToken, setDirectToken] = useState('');
-  const [manualServerUrl, setManualServerUrl] = useState(settings.serverUrl);
+  const [serverUrl, setServerUrl] = useState(settings.serverUrl);
+  const [sessionToken, setSessionToken] = useState('');
+  const [status, setStatus] = useState('');
 
-  // ── Pairing via HTTP (works same-origin, blocked by CORS cross-origin) ──
-
-  const pairWithToken = async (serverUrl: string, token: string) => {
-    setPairingStatus('Pairing...');
-    try {
-      const url = serverUrl.replace(/\/$/, '');
-      const res = await fetch(`${url}/api/auth/bootstrap/bearer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: token }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
-      setSettings({ serverUrl: url, sessionToken: data.sessionToken });
-      setPairingStatus('Paired successfully!');
-      setPairingToken('');
-      connect();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
-        setPairingStatus(
-          'CORS error — the T3Code server blocked the cross-origin request. ' +
-          'Use "Session Token" mode below instead.',
-        );
-        setShowTokenInput(true);
-      } else {
-        setPairingStatus(msg);
-      }
-    }
-  };
-
-  const handlePair = () => {
-    if (!manualServerUrl || !pairingToken) return;
-    pairWithToken(manualServerUrl, pairingToken);
-  };
-
-  const handleQrScan = (value: string) => {
-    setShowScanner(false);
-    const parsed = parsePairingUrl(value);
-    if (parsed) {
-      setManualServerUrl(parsed.serverUrl);
-      setSettings({ serverUrl: parsed.serverUrl });
-      pairWithToken(parsed.serverUrl, parsed.token);
-    } else {
-      setPairingStatus('Invalid QR code — expected a t3 pairing URL');
-    }
-  };
-
-  // ── Direct session token (bypasses CORS — only needs WebSocket) ──
-
-  const handleDirectToken = () => {
-    if (!manualServerUrl || !directToken.trim()) return;
-    const url = manualServerUrl.replace(/\/$/, '');
-    setSettings({ serverUrl: url, sessionToken: directToken.trim() });
-    setDirectToken('');
-    setPairingStatus('Token saved — connecting...');
+  const handleConnect = () => {
+    if (!serverUrl || !sessionToken.trim()) return;
+    const url = serverUrl.replace(/\/$/, '');
+    setSettings({ serverUrl: url, sessionToken: sessionToken.trim() });
+    setSessionToken('');
+    setStatus('Connecting...');
     connect();
   };
 
@@ -85,10 +31,6 @@ export function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-4">
-      {showScanner && (
-        <QrScanner onScan={handleQrScan} onClose={() => setShowScanner(false)} />
-      )}
-
       <div className="max-w-md mx-auto space-y-6 pb-8">
         {/* Header */}
         <div className="flex items-center gap-4 py-4">
@@ -100,154 +42,89 @@ export function SettingsPage() {
         <Section title="T3Code Server">
           {!settings.sessionToken ? (
             <>
-              {/* QR scan button — primary action */}
-              <button
-                onClick={() => setShowScanner(true)}
-                className="w-full bg-blue-600 hover:bg-blue-500 rounded-lg py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" />
-                  <rect x="14" y="3" width="7" height="7" />
-                  <rect x="3" y="14" width="7" height="7" />
-                  <rect x="14" y="14" width="3" height="3" />
-                  <line x1="21" y1="14" x2="21" y2="17" />
-                  <line x1="14" y1="21" x2="17" y2="21" />
-                  <line x1="21" y1="21" x2="21" y2="21" />
-                </svg>
-                Scan QR Code from t3 serve
-              </button>
+              {/* Quick-start instructions */}
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-2">
+                <p className="text-xs text-gray-400">
+                  Run this on your T3Code machine to start everything:
+                </p>
+                <code
+                  className="block bg-gray-950 rounded px-2 py-2 text-xs text-green-400 font-mono select-all break-all leading-relaxed cursor-pointer"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(START_CMD);
+                    setStatus('Copied to clipboard!');
+                    setTimeout(() => setStatus(''), 2000);
+                  }}
+                  title="Click to copy"
+                >
+                  {START_CMD}
+                </code>
+                <p className="text-xs text-gray-600">
+                  Click to copy. It starts T3Code, the CORS proxy, and a
+                  Tailscale Funnel, then shows the server URL and session token.
+                </p>
+              </div>
 
               <div className="flex items-center gap-3 text-xs text-gray-600">
                 <div className="flex-1 border-t border-gray-800" />
-                <span>or enter manually</span>
+                <span>then enter the details shown</span>
                 <div className="flex-1 border-t border-gray-800" />
               </div>
 
-              {/* Server URL — shared by both manual methods */}
-              <Field label="Server URL">
+              {/* Connection fields */}
+              <Field label="Server URL (https://)">
                 <input
                   type="url"
-                  placeholder="https://my-machine.tail1234.ts.net:3773"
-                  value={manualServerUrl}
-                  onChange={(e) => setManualServerUrl(e.target.value)}
+                  placeholder="https://your-machine.tailnet.ts.net"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
                   className={inputClass}
                 />
               </Field>
 
               {/* Mixed-content warning */}
-              {manualServerUrl.startsWith('http://') && location.protocol === 'https:' && (() => {
-                let port = '3773';
-                try { port = new URL(manualServerUrl).port || '3773'; } catch {}
-                return (
-                  <div className="text-xs bg-yellow-950 border border-yellow-900 text-yellow-400 rounded-lg px-3 py-2 space-y-1.5">
-                    <p>
-                      <strong>HTTPS required:</strong> This app is served over HTTPS,
-                      so the T3Code server must be reachable over HTTPS too.
-                    </p>
-                    <p>
-                      Easiest fix &mdash; run <strong>cloudflared</strong> on the
-                      T3Code machine (free, no account needed):
-                    </p>
-                    <code className="block bg-gray-950 rounded px-2 py-1.5 text-green-400 font-mono select-all">
-                      cloudflared tunnel --url http://localhost:{port}
-                    </code>
-                    <p>
-                      It prints an <strong>https://...trycloudflare.com</strong> URL
-                      &mdash; paste that here as the server URL.
-                    </p>
-                    <p className="text-gray-600 pt-1">
-                      Install: <code className="text-gray-500">brew install cloudflared</code> (macOS)
-                      or <code className="text-gray-500">apt install cloudflared</code> (Linux)
-                    </p>
-                  </div>
-                );
-              })()}
+              {serverUrl.startsWith('http://') && location.protocol === 'https:' && (
+                <p className="text-xs text-yellow-400 bg-yellow-950 border border-yellow-900 rounded-lg px-3 py-2">
+                  <strong>HTTPS required.</strong> Use the start script above &mdash;
+                  it sets up an HTTPS tunnel automatically.
+                </p>
+              )}
 
-              {/* Pairing token method */}
-              <Field label="Pairing Token">
+              <Field label="Session Token">
                 <input
                   type="text"
-                  placeholder="Paste token from t3 serve output"
-                  value={pairingToken}
-                  onChange={(e) => setPairingToken(e.target.value)}
+                  placeholder="Paste the token from the start script output"
+                  value={sessionToken}
+                  onChange={(e) => setSessionToken(e.target.value)}
                   className={inputClass}
                 />
               </Field>
+
               <button
-                onClick={handlePair}
-                disabled={!manualServerUrl || !pairingToken}
-                className="w-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 rounded-lg py-2.5 text-sm font-medium transition-colors"
+                onClick={handleConnect}
+                disabled={!serverUrl || !sessionToken.trim()}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg py-2.5 text-sm font-medium transition-colors"
               >
-                Pair Manually
+                Connect
               </button>
 
-              {pairingStatus && (
-                <p className="text-xs text-yellow-400 bg-yellow-950 border border-yellow-900 rounded-lg px-3 py-2">{pairingStatus}</p>
-              )}
-
-              {/* Session token fallback — works cross-origin */}
-              <div className="flex items-center gap-3 text-xs text-gray-600 pt-2">
-                <div className="flex-1 border-t border-gray-800" />
-                <button
-                  onClick={() => setShowTokenInput(!showTokenInput)}
-                  className="text-blue-400 hover:text-blue-300 whitespace-nowrap"
-                >
-                  {showTokenInput ? 'hide' : 'CORS issues? use session token'}
-                </button>
-                <div className="flex-1 border-t border-gray-800" />
-              </div>
-
-              {showTokenInput && (
-                <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-3">
-                  <p className="text-xs text-gray-500">
-                    While <span className="text-gray-400">t3 serve</span> is running,
-                    open a <span className="text-gray-400">second terminal</span> on the
-                    same machine and run:
-                  </p>
-                  <code className="block bg-gray-950 rounded px-2 py-1.5 text-xs text-green-400 font-mono select-all">
-                    t3 auth session issue --token-only
-                  </code>
-                  <Field label="Session Token">
-                    <input
-                      type="text"
-                      placeholder="Paste the session token here"
-                      value={directToken}
-                      onChange={(e) => setDirectToken(e.target.value)}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <button
-                    onClick={handleDirectToken}
-                    disabled={!manualServerUrl || !directToken.trim()}
-                    className="w-full bg-green-900 hover:bg-green-800 disabled:bg-gray-800 disabled:text-gray-600 text-green-200 rounded-lg py-2.5 text-sm font-medium transition-colors"
-                  >
-                    Connect with Session Token
-                  </button>
-                </div>
+              {status && (
+                <p className="text-xs text-gray-400 text-center">{status}</p>
               )}
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2.5">
-                <span className="text-xs text-green-400">Device Paired</span>
-                <button
-                  onClick={() => { disconnect(); setSettings({ sessionToken: '' }); }}
-                  className="text-xs text-red-400 hover:text-red-300"
-                >
-                  Unpair
-                </button>
+              <div className="bg-gray-900 rounded-lg px-3 py-2.5 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-green-400">Connected</span>
+                  <button
+                    onClick={() => { disconnect(); setSettings({ sessionToken: '' }); }}
+                    className="text-xs text-red-400 hover:text-red-300"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 truncate">{settings.serverUrl}</p>
               </div>
-              <button
-                onClick={connected ? disconnect : () => connect()}
-                disabled={connecting}
-                className={`w-full rounded-lg py-2.5 text-sm font-medium transition-colors ${
-                  connected
-                    ? 'bg-red-900 hover:bg-red-800 text-red-200'
-                    : 'bg-green-900 hover:bg-green-800 text-green-200'
-                }`}
-              >
-                {connecting ? 'Connecting...' : connected ? 'Disconnect' : 'Connect'}
-              </button>
             </>
           )}
         </Section>
