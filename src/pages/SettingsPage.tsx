@@ -127,12 +127,32 @@ export function SettingsPage() {
               <Field label="Server URL">
                 <input
                   type="url"
-                  placeholder="http://192.168.1.100:3773"
+                  placeholder="https://my-machine.tail1234.ts.net:3773"
                   value={manualServerUrl}
                   onChange={(e) => setManualServerUrl(e.target.value)}
                   className={inputClass}
                 />
               </Field>
+
+              {/* Mixed-content warning */}
+              {manualServerUrl.startsWith('http://') && location.protocol === 'https:' && (
+                <div className="text-xs bg-yellow-950 border border-yellow-900 text-yellow-400 rounded-lg px-3 py-2 space-y-1.5">
+                  <p>
+                    <strong>HTTPS/HTTP mismatch:</strong> This page is served over
+                    HTTPS, so browsers block connections to plain HTTP servers.
+                  </p>
+                  <p>
+                    Use an <strong>https://</strong> URL for your T3Code server. If
+                    you use Tailscale, run on the server machine:
+                  </p>
+                  <code className="block bg-gray-950 rounded px-2 py-1.5 text-green-400 font-mono select-all">
+                    tailscale serve --bg 3773 http://localhost:3773
+                  </code>
+                  <p>
+                    Then connect with: <strong>https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net:3773</strong>
+                  </p>
+                </div>
+              )}
 
               {/* Pairing token method */}
               <Field label="Pairing Token">

@@ -30,6 +30,27 @@ export class T3Rpc {
   }
 
   connect(): Promise<void> {
+    // Detect mixed-content before attempting the connection.
+    // HTTPS pages cannot open ws:// sockets — browsers block it.
+    if (
+      typeof location !== 'undefined' &&
+      location.protocol === 'https:' &&
+      this.wsUrl.startsWith('ws://')
+    ) {
+      const host = new URL(this.wsUrl.replace(/^ws/, 'http')).host;
+      return Promise.reject(
+        new Error(
+          `Mixed content blocked: this page is served over HTTPS but the ` +
+          `T3Code server at ${host} is plain HTTP. ` +
+          `Browsers do not allow insecure WebSocket (ws://) connections from ` +
+          `secure pages.\n\n` +
+          `Fix: serve T3Code over HTTPS. If you use Tailscale, run:\n` +
+          `  tailscale serve --bg 3773 http://localhost:3773\n` +
+          `Then connect using your https://<machine>.ts.net:3773 URL.`,
+        ),
+      );
+    }
+
     return new Promise((resolve, reject) => {
       const url = new URL(this.wsUrl);
       url.searchParams.set('token', this.wsToken);
@@ -53,7 +74,10 @@ export class T3Rpc {
       this.ws.onclose = () => {
         this.stopPing();
         this.onDisconnect?.();
-        this.attemptReconnect();
+        // Don't reconnect if the initial connect was rejected (e.g. mixed content)
+        if (this.reconnectAttempts >= 0) {
+          this.attemptReconnect();
+        }
       };
     });
   }
