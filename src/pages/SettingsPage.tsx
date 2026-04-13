@@ -146,13 +146,14 @@ export function SettingsPage() {
                     </p>
                     <p>
                       Use an <strong>https://</strong> URL for your T3Code server. If
-                      you use Tailscale, run on the server machine:
+                      you use Tailscale, run on the T3Code machine:
                     </p>
                     <code className="block bg-gray-950 rounded px-2 py-1.5 text-green-400 font-mono select-all">
-                      tailscale serve --bg {port} {manualServerUrl}
+                      tailscale serve --bg --https={port} http://127.0.0.1:{port}
                     </code>
                     <p>
-                      Then connect with: <strong>https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net:{port}</strong>
+                      Then use <strong>https://&lt;machine&gt;.&lt;tailnet&gt;.ts.net:{port}</strong> as
+                      the server URL here instead.
                     </p>
                   </div>
                 );

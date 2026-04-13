@@ -37,16 +37,17 @@ export class T3Rpc {
       location.protocol === 'https:' &&
       this.wsUrl.startsWith('ws://')
     ) {
-      const host = new URL(this.wsUrl.replace(/^ws/, 'http')).host;
+      const parsed = new URL(this.wsUrl.replace(/^ws/, 'http'));
+      const port = parsed.port || '3773';
       return Promise.reject(
         new Error(
           `Mixed content blocked: this page is served over HTTPS but the ` +
-          `T3Code server at ${host} is plain HTTP. ` +
+          `T3Code server at ${parsed.host} is plain HTTP. ` +
           `Browsers do not allow insecure WebSocket (ws://) connections from ` +
           `secure pages.\n\n` +
           `Fix: serve T3Code over HTTPS. If you use Tailscale, run:\n` +
-          `  tailscale serve --bg 3773 http://localhost:3773\n` +
-          `Then connect using your https://<machine>.ts.net:3773 URL.`,
+          `  tailscale serve --bg --https=${port} http://127.0.0.1:${port}\n` +
+          `Then connect using your https://<machine>.ts.net:${port} URL.`,
         ),
       );
     }
