@@ -1,8 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// BASE_PATH controls where the app is hosted:
+//   GitHub Pages:  /T3Code-Lens/
+//   Self-hosted:   /              (default when env var is absent)
+const base = process.env.BASE_PATH ?? '/';
+
 export default defineConfig({
-  base: '/T3Code-Lens/',
+  base,
   plugins: [react()],
   build: {
     rollupOptions: {
