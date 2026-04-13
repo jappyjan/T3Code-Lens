@@ -24,8 +24,7 @@ Then open the [app](https://jappyjan.github.io/T3Code-Lens/), go to **Settings**
 
 ### Requirements
 
-- [T3Code](https://github.com/pingdotgg/t3code) (`t3` CLI)
-- [Node.js](https://nodejs.org) >= 18
+- [Node.js](https://nodejs.org) >= 18 (T3Code is run via `npx t3`)
 - [Tailscale](https://tailscale.com/download) with [Funnel enabled](https://tailscale.com/kb/1223/funnel#setup)
 
 ## Glasses Controls

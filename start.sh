@@ -9,8 +9,7 @@ set -euo pipefail
 #   bash <(curl -fsSL https://raw.githubusercontent.com/jappyjan/T3Code-Lens/main/start.sh)
 #
 # Requirements:
-#   - t3 (T3Code CLI)
-#   - node (Node.js ≥ 18)
+#   - node (Node.js >= 18) + npx
 #   - tailscale (with Funnel enabled on your tailnet)
 #
 # Environment variables (all optional):
@@ -40,8 +39,8 @@ fi
 
 fail() { echo "ERROR: $1" >&2; exit 1; }
 
-command -v t3    >/dev/null 2>&1 || fail "t3 CLI not found. Install: https://github.com/pingdotgg/t3code"
 command -v node  >/dev/null 2>&1 || fail "Node.js not found. Install: https://nodejs.org"
+command -v npx   >/dev/null 2>&1 || fail "npx not found. Install Node.js >= 18: https://nodejs.org"
 command -v tailscale >/dev/null 2>&1 || fail "Tailscale CLI not found. Install: https://tailscale.com/download"
 
 # Check Tailscale is connected
@@ -76,7 +75,7 @@ trap cleanup EXIT INT TERM
 # ── Start T3Code ────────────────────────────────────────────────────
 
 echo "[1/3] Starting T3Code on port $T3_PORT..."
-t3 serve --host "$T3_HOST" --port "$T3_PORT" --no-browser --cwd "$T3_CWD" &
+npx t3 serve --host "$T3_HOST" --port "$T3_PORT" --no-browser --cwd "$T3_CWD" &
 PIDS+=($!)
 
 # Wait for T3Code to be ready
@@ -110,9 +109,9 @@ tailscale funnel --bg "$PROXY_PORT" 2>/dev/null || fail "Failed to start Tailsca
 
 echo ""
 echo "      Generating session token..."
-SESSION_TOKEN=$(t3 auth session issue --token-only --ttl 30d 2>/dev/null) || {
+SESSION_TOKEN=$(npx t3 auth session issue --token-only --ttl 30d 2>/dev/null) || {
   echo "      ⚠ Could not auto-generate token."
-  echo "      Run manually: t3 auth session issue --token-only"
+  echo "      Run manually: npx t3 auth session issue --token-only"
   SESSION_TOKEN=""
 }
 
