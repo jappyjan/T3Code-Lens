@@ -5,3 +5,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100dvh;
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  max-width: 430px;
+  margin: 0 auto;
+}
