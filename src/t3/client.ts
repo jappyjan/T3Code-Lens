@@ -194,6 +194,7 @@ export class T3Client {
     options?: {
       runtimeMode?: RuntimeMode;
       interactionMode?: InteractionMode;
+      modelSelection?: ModelSelection;
     },
   ): Promise<void> {
     await this.dispatch({
@@ -208,6 +209,7 @@ export class T3Client {
       },
       runtimeMode: options?.runtimeMode ?? 'auto-accept-edits',
       interactionMode: options?.interactionMode ?? 'default',
+      ...(options?.modelSelection ? { modelSelection: options.modelSelection } : {}),
       createdAt: now(),
     });
   }

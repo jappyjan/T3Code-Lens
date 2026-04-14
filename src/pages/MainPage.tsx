@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { AppShell, NavHeader, ScreenHeader, Card, Badge, Button, StatusDot, SectionHeader, ListItem } from 'even-toolkit/web';
+import { AppShell, NavHeader, ScreenHeader, Card, Badge, Button, StatusDot, SectionHeader, ListItem, Input } from 'even-toolkit/web';
 import { useAppStore } from '../store';
 import { useGlassesController } from '../glass/controller';
 import { createScreenRouter } from '../glass/selectors';
@@ -53,6 +53,7 @@ export function MainPage() {
     stopAndSend: useAppStore.getState().stopAndSend,
     cancelRecording: useAppStore.getState().cancelRecording,
     respondApproval: useAppStore.getState().respondApproval,
+    setModel: useAppStore.getState().setModel,
   }), []);
 
   const screens = useMemo(() => createScreenRouter(ctx), [ctx]);
@@ -69,17 +70,31 @@ export function MainPage() {
     }
   }, []); // eslint-disable-line
 
+  // ── New project form ─────────────────────────────────────────────
+
+  const [newTitle, setNewTitle] = useState('');
+  const [newWorkspace, setNewWorkspace] = useState('');
+
+  const handleCreateProject = () => {
+    const title = newTitle.trim();
+    if (!title) return;
+    const workspace = newWorkspace.trim() || `${settings.defaultWorkspaceRoot}/${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    store.createProject(title);
+    setNewTitle('');
+    setNewWorkspace('');
+  };
+
   // ── Derived values ───────────────────────────────────────────────
 
   const currentProject = projects.find((p) => p.id === selectedProjectId);
   const currentThread = threads.find((t) => t.id === selectedThreadId);
 
-  const stateDetail = [
+  const glassesDetail = [
+    `Screen: ${currentScreen}`,
     currentProject && `Project: ${currentProject.title}`,
     currentThread && `Thread: ${currentThread.title}`,
-    `Mode: ${interactionMode === 'plan' ? 'Plan' : 'Chat'}`,
     threadStatus !== 'idle' && `Agent: ${threadStatus}`,
-  ].filter(Boolean).join(' \u00B7 ') || 'No active selection';
+  ].filter(Boolean).join(' \u00B7 ') || 'Idle';
 
   // ── Render ───────────────────────────────────────────────────────
 
@@ -106,40 +121,65 @@ export function MainPage() {
           />
         </Card>
 
-        {/* Current screen */}
+        {/* Glasses status */}
         <Card>
           <ListItem
-            title="Screen"
-            subtitle={stateDetail}
-            trailing={<Badge variant="accent">{currentScreen}</Badge>}
+            title="Glasses"
+            subtitle={glassesDetail}
+            trailing={isRecording ? <Badge variant="accent">REC</Badge> : undefined}
           />
         </Card>
 
-        {/* Recording indicator */}
-        {isRecording && (
+        {/* Projects list */}
+        <SectionHeader title="Projects" />
+        {projects.length === 0 && connected && (
           <Card>
-            <ListItem
-              title="Recording"
-              subtitle={voice.error ?? 'Listening for voice input...'}
-              leading={<StatusDot connected={true} />}
-            />
+            <ListItem title="No projects yet" subtitle="Create one below" />
           </Card>
         )}
+        {projects.map((p) => {
+          const threadCount = threads.filter((t) => t.projectId === p.id && !t.deletedAt).length;
+          return (
+            <Card key={p.id}>
+              <ListItem
+                title={p.title}
+                subtitle={p.workspaceRoot}
+                trailing={<Badge variant="accent">{threadCount} thread{threadCount !== 1 ? 's' : ''}</Badge>}
+              />
+            </Card>
+          );
+        })}
 
-        {/* Glasses controls guide */}
-        <SectionHeader title="Glasses Controls" />
-        <Card>
-          <ListItem title="Scroll up/down" subtitle="Navigate lists / scroll content" />
-          <ListItem title="Single tap" subtitle="Select item / start dictation" />
-          <ListItem title="Double tap" subtitle="Go back" />
-          {currentScreen === 'dictate' && (
-            <>
-              <ListItem title="Tap" subtitle="Send message" />
-              <ListItem title="Scroll" subtitle="Toggle Chat/Plan mode" />
-              <ListItem title="Double tap" subtitle="Cancel recording" />
-            </>
-          )}
-        </Card>
+        {/* Create project form */}
+        {connected && (
+          <>
+            <SectionHeader title="New Project" />
+            <Card>
+              <div className="px-4 py-3 space-y-2">
+                <Input
+                  type="text"
+                  placeholder="Project title"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                />
+                <Input
+                  type="text"
+                  placeholder={`Workspace (default: ${settings.defaultWorkspaceRoot}/...)`}
+                  value={newWorkspace}
+                  onChange={(e) => setNewWorkspace(e.target.value)}
+                />
+                <Button
+                  variant="highlight"
+                  className="w-full"
+                  onClick={handleCreateProject}
+                  disabled={!newTitle.trim()}
+                >
+                  Create Project
+                </Button>
+              </div>
+            </Card>
+          </>
+        )}
       </main>
     </AppShell>
   );

@@ -1,5 +1,5 @@
 // ── Glasses Screen: Projects List ───────────────────────────────────
-// Scrollable list of all T3Code projects with "+ New Project" action.
+// Scrollable list of all T3Code projects. Selection only — creation is on the phone.
 
 import { line, separator, glassHeader, buildScrollableList, DEFAULT_CONTENT_SLOTS } from 'even-toolkit';
 import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext, DisplayData } from '../shared';
@@ -14,7 +14,6 @@ export function createProjectsScreen(ctx: ScreenContext): GlassScreenDef {
       const n = snap.threads.filter((t) => t.projectId === p.id && !t.deletedAt).length;
       return { label: p.title, suffix: `${n}`, id: p.id };
     });
-    items.push({ label: '+ New Project', suffix: '', id: '' });
 
     // Header
     const badge = snap.connected ? 'PROJECTS' : 'OFFLINE';
@@ -38,7 +37,8 @@ export function createProjectsScreen(ctx: ScreenContext): GlassScreenDef {
   }
 
   function action(nav: GlassNavState, snap: Snapshot, act: GlassAction): GlassNavState | void {
-    const count = snap.projects.length + 1;
+    const count = snap.projects.length;
+    if (count === 0) return nav;
 
     switch (act.type) {
       case 'HIGHLIGHT_MOVE': {
@@ -46,13 +46,8 @@ export function createProjectsScreen(ctx: ScreenContext): GlassScreenDef {
         return { ...nav, highlightedIndex: clamp(nav.highlightedIndex + dir, 0, count - 1) };
       }
       case 'SELECT_HIGHLIGHTED': {
-        if (nav.highlightedIndex < snap.projects.length) {
-          const p = snap.projects[nav.highlightedIndex];
-          if (p) { ctx.selectProject(p.id); ctx.navigateTo('sessions'); }
-        } else {
-          ctx.navigateTo('dictate', { type: 'new-project' });
-          ctx.startRecording();
-        }
+        const p = snap.projects[nav.highlightedIndex];
+        if (p) { ctx.selectProject(p.id); ctx.navigateTo('sessions'); }
         return { ...nav, highlightedIndex: 0 };
       }
       case 'GO_BACK':

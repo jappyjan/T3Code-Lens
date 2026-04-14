@@ -9,6 +9,7 @@ import type {
   T3Project, T3Thread, T3Message,
   InteractionMode, RuntimeMode, ModelSelection,
 } from '../t3/types';
+export type { ModelSelection };
 import type { ScreenName, DictateIntent, Snapshot } from '../glass/shared';
 import type { STTProvider } from '../stt/use-voice-input';
 
@@ -79,6 +80,7 @@ interface AppState {
   setTranscript: (transcript: string, interim: string) => void;
 
   respondApproval: (decision: 'allow' | 'deny') => void;
+  setModel: (model: ModelSelection) => void;
 
   getSnapshot: () => Snapshot;
 }
@@ -273,6 +275,7 @@ export const useAppStore = create<AppState>()(
         t3.sendMessage(selectedThreadId, text.trim(), {
           runtimeMode: settings.defaultRuntimeMode,
           interactionMode,
+          modelSelection: settings.defaultModel,
         });
       },
 
@@ -291,6 +294,10 @@ export const useAppStore = create<AppState>()(
         if (!t3 || !selectedThreadId || !pendingApproval) return;
         t3.respondToApproval(selectedThreadId, pendingApproval.requestId, decision);
         set({ pendingApproval: null });
+      },
+
+      setModel: (model) => {
+        set((s) => ({ settings: { ...s.settings, defaultModel: model } }));
       },
 
       // ── Voice ──────────────────────────────────────────────────
@@ -354,6 +361,7 @@ export const useAppStore = create<AppState>()(
           interimTranscript: s.interimTranscript,
           dictateIntent: s.dictateIntent,
           pendingApproval: s.pendingApproval,
+          defaultModel: s.settings.defaultModel,
         };
       },
     }),
