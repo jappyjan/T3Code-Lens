@@ -1,10 +1,6 @@
-// ── Main Page (Phone Companion) ─────────────────────────────────────
-// Runs the glasses controller hook and shows a minimal status view.
-// All real interaction happens on the glasses display.
-
 import { useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import { AppShell, Card, Badge, Button, ScreenHeader, StatusDot, SectionHeader } from 'even-toolkit/web';
+import { AppShell, NavHeader, ScreenHeader, Card, Badge, Button, StatusDot, SectionHeader, ListItem } from 'even-toolkit/web';
 import { useAppStore } from '../store';
 import { useGlassesController } from '../glass/controller';
 import { createScreenRouter } from '../glass/selectors';
@@ -29,12 +25,10 @@ export function MainPage() {
     language: settings.sttLanguage,
   });
 
-  // Sync voice transcript → store
   useEffect(() => {
     store.setTranscript(voice.transcript, voice.interimTranscript);
   }, [voice.transcript, voice.interimTranscript]); // eslint-disable-line
 
-  // Start/stop recording when store flag changes
   useEffect(() => {
     if (isRecording && !voice.isListening) {
       voice.reset();
@@ -44,7 +38,7 @@ export function MainPage() {
     }
   }, [isRecording]); // eslint-disable-line
 
-  // ── Screen context (callbacks from glasses → store) ──────────────
+  // ── Screen context ───────────────────────────────────────────────
 
   const ctx: ScreenContext = useMemo(() => ({
     selectProject: useAppStore.getState().selectProject,
@@ -65,8 +59,6 @@ export function MainPage() {
   const getSnapshot = useCallback(() => useAppStore.getState().getSnapshot(), []);
   const getCurrentScreen = useCallback(() => useAppStore.getState().currentScreen, []);
 
-  // ── Glasses bridge ───────────────────────────────────────────────
-
   useGlassesController({ screens, getSnapshot, getCurrentScreen });
 
   // ── Auto-connect on mount ────────────────────────────────────────
@@ -77,88 +69,78 @@ export function MainPage() {
     }
   }, []); // eslint-disable-line
 
-  // ── Derived display values ───────────────────────────────────────
+  // ── Derived values ───────────────────────────────────────────────
 
   const currentProject = projects.find((p) => p.id === selectedProjectId);
   const currentThread = threads.find((t) => t.id === selectedThreadId);
 
-  // ── Render (phone status view) ───────────────────────────────────
+  const stateDetail = [
+    currentProject && `Project: ${currentProject.title}`,
+    currentThread && `Thread: ${currentThread.title}`,
+    `Mode: ${interactionMode === 'plan' ? 'Plan' : 'Chat'}`,
+    threadStatus !== 'idle' && `Agent: ${threadStatus}`,
+  ].filter(Boolean).join(' \u00B7 ') || 'No active selection';
+
+  // ── Render ───────────────────────────────────────────────────────
 
   return (
-    <AppShell header={<ScreenHeader title="T3Code Lens" subtitle="Smart Glasses Coding Assistant" />}>
-      <div className="px-3 pt-4 pb-8 space-y-3">
-        {/* Connection */}
+    <AppShell
+      header={<NavHeader title="T3Code Lens" right={
+        <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>Settings</Button>
+      } />}
+    >
+      <main className="px-3 pt-4 pb-8 space-y-3">
+        <ScreenHeader title="T3Code Lens" subtitle="Smart Glasses Coding Assistant" />
+
+        {/* Connection status */}
         <Card>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <StatusDot connected={connected} />
-              <span className="text-normal-title">Server</span>
-            </div>
-            <Badge variant={connected ? 'positive' : 'negative'}>
-              {connecting ? 'Connecting...' : connected ? 'Connected' : 'Disconnected'}
-            </Badge>
-          </div>
-          {(connectionError || settings.serverUrl) && (
-            <p className="text-detail truncate mt-1">
-              {connectionError ?? settings.serverUrl}
-            </p>
-          )}
+          <ListItem
+            title="Server"
+            subtitle={connectionError ?? (settings.serverUrl || 'Not configured')}
+            leading={<StatusDot connected={connected} />}
+            trailing={
+              <Badge variant={connected ? 'positive' : 'negative'}>
+                {connecting ? 'Connecting...' : connected ? 'Connected' : 'Disconnected'}
+              </Badge>
+            }
+          />
         </Card>
 
-        {/* Current state */}
+        {/* Current screen */}
         <Card>
-          <div className="flex items-center justify-between">
-            <span className="text-normal-title">Screen</span>
-            <Badge variant="accent">{currentScreen}</Badge>
-          </div>
-          <p className="text-detail truncate mt-1">
-            {[
-              currentProject && `Project: ${currentProject.title}`,
-              currentThread && `Thread: ${currentThread.title}`,
-              `Mode: ${interactionMode === 'plan' ? 'Plan' : 'Chat'}`,
-              threadStatus !== 'idle' && `Agent: ${threadStatus}`,
-            ].filter(Boolean).join(' \u00B7 ') || 'No active selection'}
-          </p>
+          <ListItem
+            title="Screen"
+            subtitle={stateDetail}
+            trailing={<Badge variant="accent">{currentScreen}</Badge>}
+          />
         </Card>
 
         {/* Recording indicator */}
         {isRecording && (
           <Card>
-            <div className="flex items-center gap-3">
-              <span className="animate-pulse-dot" />
-              <div>
-                <span className="text-normal-title">Recording</span>
-                {voice.error && (
-                  <p className="text-detail mt-0.5">{voice.error}</p>
-                )}
-              </div>
-            </div>
+            <ListItem
+              title="Recording"
+              subtitle={voice.error ?? 'Listening for voice input...'}
+              leading={<StatusDot connected={true} />}
+            />
           </Card>
         )}
 
-        {/* Gesture guide */}
+        {/* Glasses controls guide */}
         <SectionHeader title="Glasses Controls" />
         <Card>
-          <div className="text-detail space-y-1.5">
-            <p>Scroll up/down &mdash; Navigate lists / scroll content</p>
-            <p>Single tap &mdash; Select item / start dictation</p>
-            <p>Double tap &mdash; Go back</p>
-            {currentScreen === 'dictate' && (
-              <>
-                <p className="text-subtitle mt-2">Dictation</p>
-                <p>Tap &mdash; Send message</p>
-                <p>Scroll &mdash; Toggle Chat/Plan mode</p>
-                <p>Double tap &mdash; Cancel</p>
-              </>
-            )}
-          </div>
+          <ListItem title="Scroll up/down" subtitle="Navigate lists / scroll content" />
+          <ListItem title="Single tap" subtitle="Select item / start dictation" />
+          <ListItem title="Double tap" subtitle="Go back" />
+          {currentScreen === 'dictate' && (
+            <>
+              <ListItem title="Tap" subtitle="Send message" />
+              <ListItem title="Scroll" subtitle="Toggle Chat/Plan mode" />
+              <ListItem title="Double tap" subtitle="Cancel recording" />
+            </>
+          )}
         </Card>
-
-        {/* Settings link */}
-        <Button variant="secondary" className="w-full" onClick={() => navigate('/settings')}>
-          Settings
-        </Button>
-      </div>
+      </main>
     </AppShell>
   );
 }

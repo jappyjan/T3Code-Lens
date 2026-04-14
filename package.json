@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5173 --host",
     "build": "tsc -b && vite build && cp dist/index.html dist/404.html",
     "preview": "vite preview",
     "serve": "npm run build && npx -y serve dist -l 5174 --cors"
@@ -21,12 +21,12 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^22.19.17",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.2.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
   }

@@ -1,23 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
-// BASE_PATH controls where the app is hosted:
-//   GitHub Pages:  /T3Code-Lens/
-//   Self-hosted:   /              (default when env var is absent)
 const base = process.env.BASE_PATH ?? '/';
 
 export default defineConfig({
   base,
-  plugins: [react()],
-  build: {
-    rollupOptions: {
-      // even-toolkit and its SDK are provided by the Even Hub WebView at
-      // runtime. They must not be bundled — mark them as external.
-      external: [],
-    },
-  },
-  server: {
-    host: true,
-    port: 5173,
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    dedupe: ['react', 'react-dom', 'react-router', '@evenrealities/even_hub_sdk'],
   },
 });
