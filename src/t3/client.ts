@@ -84,6 +84,9 @@ export class T3Client {
       this.onConnectionChange?.(true);
       this.subscribeAndLoad();
     };
+    this.rpc.refreshToken = async () => {
+      return this.getWsToken();
+    };
     await this.rpc.connect();
     this.onConnectionChange?.(true);
 

@@ -33,6 +33,7 @@ export class T3Rpc {
 
   public onDisconnect?: () => void;
   public onReconnect?: () => void;
+  public refreshToken?: () => Promise<string>;
 
   constructor(wsUrl: string, wsToken: string) {
     this.wsUrl = wsUrl;
@@ -152,10 +153,13 @@ export class T3Rpc {
         break;
 
       case 'Chunk': {
-        const req = this.pending.get(msg.requestId as string);
+        const requestId = msg.requestId as string;
+        const req = this.pending.get(requestId);
         if (req?.onChunk) {
           req.onChunk(msg.values as unknown[]);
         }
+        // Acknowledge the chunk so the server sends the next one
+        this.send({ _tag: 'Ack', requestId });
         break;
       }
 
@@ -204,7 +208,15 @@ export class T3Rpc {
     );
     this.reconnectAttempts++;
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Refresh the WS token before reconnecting (old one may have expired)
+      if (this.refreshToken) {
+        try {
+          this.wsToken = await this.refreshToken();
+        } catch {
+          // If token refresh fails, try with old token
+        }
+      }
       this.connect()
         .then(() => this.onReconnect?.())
         .catch(() => this.attemptReconnect());
