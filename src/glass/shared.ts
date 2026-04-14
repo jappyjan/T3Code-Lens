@@ -1,7 +1,10 @@
 // ── Glasses Shared Types ────────────────────────────────────────────
 // Types shared across all glasses screens and the controller.
 
+import type { DisplayData, DisplayLine } from 'even-toolkit';
 import type { T3Project, T3Thread, T3Message, InteractionMode } from '../t3/types';
+
+export type { DisplayData, DisplayLine };
 
 // ── Screen names ───────────────────────────────────────────────────
 
@@ -65,7 +68,7 @@ export type GlassAction =
   | { type: 'GO_BACK' };
 
 export interface GlassScreenDef {
-  display(nav: GlassNavState, snapshot: Snapshot): string[];
+  display(nav: GlassNavState, snapshot: Snapshot): DisplayData;
   action(nav: GlassNavState, snapshot: Snapshot, action: GlassAction): GlassNavState | void;
 }
 

@@ -3,8 +3,9 @@
 // Newest messages at the bottom; scroll UP to see older history.
 // Supports chat mode, plan mode, approval requests, and streaming.
 
-import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext } from '../shared';
-import { G2_CHARS, RULE, padLine, truncate, wrapText } from '../shared';
+import { line, separator } from 'even-toolkit';
+import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext, DisplayData, DisplayLine } from '../shared';
+import { G2_CHARS, padLine, truncate, wrapText } from '../shared';
 
 const CHAT_LINES = 7;
 const USER_PREFIX = '> ';
@@ -14,15 +15,18 @@ const SYS_PREFIX  = '= ';
 export function createChatScreen(ctx: ScreenContext): GlassScreenDef {
   return { display, action };
 
-  function buildDisplayLines(snap: Snapshot): string[] {
-    const allLines: string[] = [];
+  function buildDisplayLines(snap: Snapshot): DisplayLine[] {
+    const allLines: DisplayLine[] = [];
 
-    // Render messages oldest → newest (display order bottom = newest)
+    // Render messages oldest -> newest (display order bottom = newest)
     for (const msg of snap.messages) {
       const prefix =
         msg.role === 'user'      ? USER_PREFIX :
         msg.role === 'assistant' ? ASST_PREFIX : SYS_PREFIX;
-      allLines.push(...wrapText(prefix + msg.text, G2_CHARS));
+      const style = msg.role === 'user' ? 'normal' : 'meta';
+      for (const text of wrapText(prefix + msg.text, G2_CHARS)) {
+        allLines.push(line(text, style));
+      }
     }
 
     // Streaming text from agent
@@ -34,21 +38,23 @@ export function createChatScreen(ctx: ScreenContext): GlassScreenDef {
           streamLines[streamLines.length - 1] = last + '\u2588';
         }
       }
-      allLines.push(...streamLines);
+      for (const text of streamLines) {
+        allLines.push(line(text, 'meta'));
+      }
     }
 
     // Pending approval request
     if (snap.pendingApproval) {
-      allLines.push('');
-      allLines.push('! APPROVE? ' + truncate(snap.pendingApproval.description, G2_CHARS - 11));
-      allLines.push('  SCROLL UP=allow  DOWN=deny');
+      allLines.push(line(''));
+      allLines.push(line('! APPROVE? ' + truncate(snap.pendingApproval.description, G2_CHARS - 11), 'inverted'));
+      allLines.push(line('  SCROLL UP=allow  DOWN=deny', 'inverted'));
     }
 
     return allLines;
   }
 
-  function display(nav: GlassNavState, snap: Snapshot): string[] {
-    const lines: string[] = [];
+  function display(nav: GlassNavState, snap: Snapshot): DisplayData {
+    const lines: DisplayLine[] = [];
     const thread = snap.threads.find((t) => t.id === snap.selectedThreadId);
     const mode = snap.interactionMode === 'plan' ? 'PLAN' : 'CHAT';
     const status =
@@ -56,8 +62,8 @@ export function createChatScreen(ctx: ScreenContext): GlassScreenDef {
       snap.threadStatus === 'error'   ? ' !'    : '';
 
     // Header
-    lines.push(padLine(truncate(thread?.title ?? 'Chat', 28), mode + status));
-    lines.push(RULE);
+    lines.push(line(padLine(truncate(thread?.title ?? 'Chat', 28), mode + status)));
+    lines.push(separator());
 
     // Chat lines — scroll position 0 = show newest (bottom of allLines)
     const allLines = buildDisplayLines(snap);
@@ -70,20 +76,20 @@ export function createChatScreen(ctx: ScreenContext): GlassScreenDef {
     const visible = allLines.slice(startIdx, endIdx);
 
     for (let i = 0; i < CHAT_LINES; i++) {
-      lines.push(visible[i] ?? '');
+      lines.push(visible[i] ?? line(''));
     }
 
     // Footer
-    lines.push(RULE);
+    lines.push(separator());
     const canOlder = startIdx > 0;
     const canNewer = scrollPos > 0;
     const scroll = (canOlder ? '\u25B2' : ' ') + (canNewer ? '\u25BC' : ' ');
     const page = total > CHAT_LINES
       ? `${Math.floor(scrollPos / CHAT_LINES) + 1}/${Math.ceil(total / CHAT_LINES)}`
       : '';
-    lines.push(padLine(`TAP:talk  \u25C0\u25C0:back  ${mode}`, `${page} ${scroll}`));
+    lines.push(line(padLine(`TAP:talk  \u25C0\u25C0:back  ${mode}`, `${page} ${scroll}`), 'meta'));
 
-    return lines;
+    return { lines };
   }
 
   function action(nav: GlassNavState, snap: Snapshot, act: GlassAction): GlassNavState | void {

@@ -1,20 +1,14 @@
 // ── Glasses Screen: Projects List ───────────────────────────────────
 // Scrollable list of all T3Code projects with "+ New Project" action.
 
-import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext } from '../shared';
-import { G2_CHARS, CONTENT_LINES, RULE, padLine, truncate } from '../shared';
+import { line, separator, glassHeader, buildScrollableList, DEFAULT_CONTENT_SLOTS } from 'even-toolkit';
+import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext, DisplayData } from '../shared';
+import { padLine, truncate } from '../shared';
 
 export function createProjectsScreen(ctx: ScreenContext): GlassScreenDef {
   return { display, action };
 
-  function display(nav: GlassNavState, snap: Snapshot): string[] {
-    const lines: string[] = [];
-
-    // Header
-    const badge = snap.connected ? 'PROJECTS' : 'OFFLINE';
-    lines.push(padLine('T3Code Lens', badge));
-    lines.push(RULE);
-
+  function display(nav: GlassNavState, snap: Snapshot): DisplayData {
     // Item list: projects + "New Project"
     const items = snap.projects.map((p) => {
       const n = snap.threads.filter((t) => t.projectId === p.id && !t.deletedAt).length;
@@ -22,29 +16,25 @@ export function createProjectsScreen(ctx: ScreenContext): GlassScreenDef {
     });
     items.push({ label: '+ New Project', suffix: '', id: '' });
 
-    // Scrollable window
-    const maxVis = CONTENT_LINES;
-    const offset = Math.max(0, Math.min(nav.highlightedIndex - maxVis + 1, items.length - maxVis));
-    const visible = items.slice(offset, offset + maxVis);
+    // Header
+    const badge = snap.connected ? 'PROJECTS' : 'OFFLINE';
+    const headerLines = glassHeader('T3Code Lens', badge);
 
-    for (let i = 0; i < maxVis; i++) {
-      const item = visible[i];
-      if (!item) { lines.push(''); continue; }
-      const idx = offset + i;
-      const marker = idx === nav.highlightedIndex ? '\u25B8 ' : '  ';
-      const avail = G2_CHARS - marker.length - item.suffix.length - 1;
-      const label = truncate(item.label, avail);
-      lines.push(padLine(marker + label, item.suffix));
-    }
+    // Scrollable list with highlight
+    const listLines = buildScrollableList({
+      items,
+      highlightedIndex: nav.highlightedIndex,
+      maxVisible: DEFAULT_CONTENT_SLOTS,
+      formatter: (item) => padLine(truncate(item.label, 36), item.suffix),
+    });
 
     // Footer
-    lines.push(RULE);
-    const canUp = offset > 0;
-    const canDown = offset + maxVis < items.length;
-    const scroll = (canUp ? '\u25B2' : ' ') + (canDown ? '\u25BC' : ' ');
-    lines.push(padLine('TAP:open  SCROLL:nav', scroll));
+    const footerLines = [
+      separator(),
+      line('TAP:open  SCROLL:nav', 'meta'),
+    ];
 
-    return lines;
+    return { lines: [...headerLines, ...listLines, ...footerLines] };
   }
 
   function action(nav: GlassNavState, snap: Snapshot, act: GlassAction): GlassNavState | void {

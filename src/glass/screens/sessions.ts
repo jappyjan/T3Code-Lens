@@ -1,8 +1,9 @@
 // ── Glasses Screen: Sessions List ───────────────────────────────────
 // Lists all threads for the selected project, newest first.
 
-import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext } from '../shared';
-import { G2_CHARS, CONTENT_LINES, RULE, padLine, truncate } from '../shared';
+import { line, separator, glassHeader, buildScrollableList, DEFAULT_CONTENT_SLOTS } from 'even-toolkit';
+import type { GlassNavState, GlassAction, GlassScreenDef, Snapshot, ScreenContext, DisplayData } from '../shared';
+import { padLine, truncate } from '../shared';
 
 export function createSessionsScreen(ctx: ScreenContext): GlassScreenDef {
   return { display, action };
@@ -13,13 +14,8 @@ export function createSessionsScreen(ctx: ScreenContext): GlassScreenDef {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  function display(nav: GlassNavState, snap: Snapshot): string[] {
-    const lines: string[] = [];
+  function display(nav: GlassNavState, snap: Snapshot): DisplayData {
     const project = snap.projects.find((p) => p.id === snap.selectedProjectId);
-
-    // Header
-    lines.push(padLine(truncate(project?.title ?? '???', 30), 'SESSIONS'));
-    lines.push(RULE);
 
     // Items
     const threads = getThreads(snap);
@@ -31,28 +27,24 @@ export function createSessionsScreen(ctx: ScreenContext): GlassScreenDef {
     });
     items.push({ label: '+ New Session', suffix: '', id: '' });
 
-    const maxVis = CONTENT_LINES;
-    const offset = Math.max(0, Math.min(nav.highlightedIndex - maxVis + 1, items.length - maxVis));
-    const visible = items.slice(offset, offset + maxVis);
+    // Header
+    const headerLines = glassHeader(truncate(project?.title ?? '???', 30), 'SESSIONS');
 
-    for (let i = 0; i < maxVis; i++) {
-      const item = visible[i];
-      if (!item) { lines.push(''); continue; }
-      const idx = offset + i;
-      const marker = idx === nav.highlightedIndex ? '\u25B8 ' : '  ';
-      const avail = G2_CHARS - marker.length - item.suffix.length - 1;
-      const label = truncate(item.label, avail);
-      lines.push(padLine(marker + label, item.suffix));
-    }
+    // Scrollable list
+    const listLines = buildScrollableList({
+      items,
+      highlightedIndex: nav.highlightedIndex,
+      maxVisible: DEFAULT_CONTENT_SLOTS,
+      formatter: (item) => padLine(truncate(item.label, 30), item.suffix),
+    });
 
     // Footer
-    lines.push(RULE);
-    const canUp = offset > 0;
-    const canDown = offset + maxVis < items.length;
-    const scroll = (canUp ? '\u25B2' : ' ') + (canDown ? '\u25BC' : ' ');
-    lines.push(padLine('TAP:open  \u25C0\u25C0:back', scroll));
+    const footerLines = [
+      separator(),
+      line('TAP:open  \u25C0\u25C0:back', 'meta'),
+    ];
 
-    return lines;
+    return { lines: [...headerLines, ...listLines, ...footerLines] };
   }
 
   function action(nav: GlassNavState, snap: Snapshot, act: GlassAction): GlassNavState | void {

@@ -1,3 +1,6 @@
+@import 'even-toolkit/web/theme-dark.css';
+@import 'even-toolkit/web/typography.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router';
+import { Card, Badge, Button, ScreenHeader } from 'even-toolkit/web';
 import { useAppStore } from '../store';
 import { useGlassesController } from '../glass/controller';
 import { createScreenRouter } from '../glass/selectors';
@@ -86,97 +87,79 @@ export function MainPage() {
     <div className="min-h-screen bg-gray-950 text-white p-4">
       <div className="max-w-md mx-auto space-y-4">
         {/* Header */}
-        <div className="text-center py-4">
-          <h1 className="text-xl font-bold tracking-tight">T3Code Lens</h1>
-          <p className="text-xs text-gray-500 mt-1">Smart Glasses Coding Assistant</p>
-        </div>
+        <ScreenHeader title="T3Code Lens" subtitle="Smart Glasses Coding Assistant" />
 
         {/* Connection */}
-        <StatusCard
-          label="Server"
-          value={connecting ? 'Connecting...' : connected ? 'Connected' : 'Disconnected'}
-          color={connected ? 'green' : 'red'}
-          detail={connectionError ?? (settings.serverUrl || 'Not configured')}
-        />
+        <Card>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">Server</span>
+            <Badge variant={connected ? 'positive' : 'negative'}>
+              {connecting ? 'Connecting...' : connected ? 'Connected' : 'Disconnected'}
+            </Badge>
+          </div>
+          {(connectionError || settings.serverUrl) && (
+            <p className="text-xs text-gray-600 mt-1.5 truncate">
+              {connectionError ?? settings.serverUrl}
+            </p>
+          )}
+        </Card>
 
         {/* Current state */}
-        <StatusCard
-          label="Screen"
-          value={currentScreen}
-          color="blue"
-          detail={[
-            currentProject && `Project: ${currentProject.title}`,
-            currentThread && `Thread: ${currentThread.title}`,
-            `Mode: ${interactionMode === 'plan' ? 'Plan' : 'Chat'}`,
-            threadStatus !== 'idle' && `Agent: ${threadStatus}`,
-          ].filter(Boolean).join(' \u00B7 ') || 'No active selection'}
-        />
+        <Card>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">Screen</span>
+            <Badge variant="accent">{currentScreen}</Badge>
+          </div>
+          <p className="text-xs text-gray-600 mt-1.5 truncate">
+            {[
+              currentProject && `Project: ${currentProject.title}`,
+              currentThread && `Thread: ${currentThread.title}`,
+              `Mode: ${interactionMode === 'plan' ? 'Plan' : 'Chat'}`,
+              threadStatus !== 'idle' && `Agent: ${threadStatus}`,
+            ].filter(Boolean).join(' \u00B7 ') || 'No active selection'}
+          </p>
+        </Card>
 
         {/* Recording indicator */}
         {isRecording && (
-          <div className="flex items-center gap-3 bg-red-950 border border-red-800 rounded-lg px-4 py-3">
-            <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-            <div>
-              <span className="text-sm font-medium text-red-300">Recording</span>
-              {voice.error && (
-                <p className="text-xs text-red-400 mt-0.5">{voice.error}</p>
-              )}
+          <Card className="border border-red-800 bg-red-950">
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+              <div>
+                <span className="text-sm font-medium text-red-300">Recording</span>
+                {voice.error && (
+                  <p className="text-xs text-red-400 mt-0.5">{voice.error}</p>
+                )}
+              </div>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Gesture guide */}
-        <div className="bg-gray-900 rounded-lg p-4 text-xs text-gray-500 space-y-1.5">
-          <p className="text-gray-400 font-medium mb-2">Glasses Controls</p>
-          <p>Scroll up/down &mdash; Navigate lists / scroll content</p>
-          <p>Single tap &mdash; Select item / start dictation</p>
-          <p>Double tap &mdash; Go back</p>
-          {currentScreen === 'dictate' && (
-            <>
-              <p className="mt-2 text-gray-400 font-medium">Dictation</p>
-              <p>Tap &mdash; Send message</p>
-              <p>Scroll &mdash; Toggle Chat/Plan mode</p>
-              <p>Double tap &mdash; Cancel</p>
-            </>
-          )}
-        </div>
+        <Card>
+          <p className="text-sm font-medium text-gray-400 mb-2">Glasses Controls</p>
+          <div className="text-xs text-gray-500 space-y-1.5">
+            <p>Scroll up/down &mdash; Navigate lists / scroll content</p>
+            <p>Single tap &mdash; Select item / start dictation</p>
+            <p>Double tap &mdash; Go back</p>
+            {currentScreen === 'dictate' && (
+              <>
+                <p className="mt-2 text-gray-400 font-medium">Dictation</p>
+                <p>Tap &mdash; Send message</p>
+                <p>Scroll &mdash; Toggle Chat/Plan mode</p>
+                <p>Double tap &mdash; Cancel</p>
+              </>
+            )}
+          </div>
+        </Card>
 
         {/* Settings link */}
-        <Link
-          to="/settings"
-          className="block w-full bg-gray-800 hover:bg-gray-700 text-center rounded-lg p-3 text-sm transition-colors"
-        >
-          Settings
+        <Link to="/settings">
+          <Button variant="secondary" className="w-full">
+            Settings
+          </Button>
         </Link>
       </div>
-    </div>
-  );
-}
-
-// ── Status Card ────────────────────────────────────────────────────
-
-function StatusCard(props: {
-  label: string;
-  value: string;
-  color: 'green' | 'red' | 'blue';
-  detail?: string;
-}) {
-  const colors = {
-    green: 'text-green-400',
-    red: 'text-red-400',
-    blue: 'text-blue-400',
-  };
-  return (
-    <div className="bg-gray-900 rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-400">{props.label}</span>
-        <span className={`text-sm font-medium ${colors[props.color]}`}>
-          {props.value}
-        </span>
-      </div>
-      {props.detail && (
-        <p className="text-xs text-gray-600 mt-1.5 truncate">{props.detail}</p>
-      )}
     </div>
   );
 }
