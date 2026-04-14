@@ -13,9 +13,7 @@ export default defineConfig({
     rollupOptions: {
       // even-toolkit and its SDK are provided by the Even Hub WebView at
       // runtime. They must not be bundled — mark them as external.
-      external: [
-        '@evenrealities/even_hub_sdk',
-      ],
+      external: [],
     },
   },
   server: {
