@@ -1,12 +1,13 @@
 // ── T3Code High-Level Client ────────────────────────────────────────
 // Wraps the RPC layer with typed methods for orchestration, projects,
 // threads, and message dispatch.
+//
+// Uses Effect RPC protocol:
+//   - Request/response for getSnapshot, dispatchCommand
+//   - Streaming subscription for domain events
 
 import { T3Rpc } from './rpc';
 import type {
-  T3Project,
-  T3Thread,
-  T3Message,
   T3ShellSnapshot,
   ModelSelection,
   RuntimeMode,
@@ -26,11 +27,10 @@ export class T3Client {
   private sessionToken = '';
 
   public onShellUpdate?: (snapshot: T3ShellSnapshot) => void;
-  public onThreadEvent?: (threadId: string, events: unknown[]) => void;
+  public onDomainEvent?: (event: unknown) => void;
   public onConnectionChange?: (connected: boolean) => void;
 
-  private shellSub?: { cancel: () => void };
-  private threadSubs = new Map<string, { cancel: () => void }>();
+  private domainEventSub?: { cancel: () => void };
 
   // ── Authentication ───────────────────────────────────────────────
 
@@ -71,8 +71,6 @@ export class T3Client {
     const wsUrl = this.serverUrl.replace(/^http/, 'ws') + '/ws';
 
     // Try to get a short-lived WS token via HTTP first.
-    // If that fails (e.g. CORS when hosted on a different origin),
-    // fall back to connecting with the bearer session token directly.
     let token = this.sessionToken;
     try {
       token = await this.getWsToken();
@@ -84,68 +82,52 @@ export class T3Client {
     this.rpc.onDisconnect = () => this.onConnectionChange?.(false);
     this.rpc.onReconnect = () => {
       this.onConnectionChange?.(true);
-      this.resubscribe();
+      this.subscribeAndLoad();
     };
     await this.rpc.connect();
     this.onConnectionChange?.(true);
+
+    this.subscribeAndLoad();
   }
 
-  private resubscribe() {
-    if (this.shellSub) this.subscribeShell();
-    for (const threadId of this.threadSubs.keys()) {
-      this.subscribeThread(threadId);
+  private subscribeAndLoad() {
+    // Subscribe to domain events (streaming RPC)
+    this.domainEventSub?.cancel();
+    if (this.rpc) {
+      this.domainEventSub = this.rpc.subscribe(
+        'subscribeOrchestrationDomainEvents',
+        {},
+        (values) => {
+          for (const value of values) {
+            this.onDomainEvent?.(value);
+          }
+        },
+      );
     }
+
+    // Load initial snapshot
+    this.loadSnapshot();
   }
 
-  // ── Shell Subscription (projects + threads list) ─────────────────
-
-  subscribeShell() {
+  private async loadSnapshot() {
     if (!this.rpc) return;
-    this.shellSub?.cancel();
-    this.shellSub = this.rpc.subscribe(
-      'orchestration.subscribeShell',
-      {},
-      (values) => {
-        for (const value of values) this.handleShellEvent(value);
-      },
-    );
-  }
-
-  private handleShellEvent(event: unknown) {
-    const e = event as Record<string, unknown>;
-    // Shell events can arrive as a full snapshot or incremental updates
-    const data = (e.data ?? e) as Record<string, unknown>;
-    if (data.projects || data.threads) {
-      this.onShellUpdate?.({
-        projects: (data.projects as T3Project[]) ?? [],
-        threads: (data.threads as T3Thread[]) ?? [],
-      });
+    try {
+      const snapshot = await this.rpc.request<T3ShellSnapshot>(
+        'orchestration.getSnapshot',
+      );
+      if (snapshot) {
+        this.onShellUpdate?.(snapshot);
+      }
+    } catch (err) {
+      console.warn('Failed to load snapshot:', err);
     }
-  }
-
-  // ── Thread Subscription (messages + events) ──────────────────────
-
-  subscribeThread(threadId: string) {
-    if (!this.rpc) return;
-    this.threadSubs.get(threadId)?.cancel();
-
-    const sub = this.rpc.subscribe(
-      'orchestration.subscribeThread',
-      { threadId },
-      (values) => this.onThreadEvent?.(threadId, values),
-    );
-    this.threadSubs.set(threadId, sub);
-  }
-
-  unsubscribeThread(threadId: string) {
-    this.threadSubs.get(threadId)?.cancel();
-    this.threadSubs.delete(threadId);
   }
 
   // ── Commands ─────────────────────────────────────────────────────
 
   private async dispatch(command: Record<string, unknown>): Promise<unknown> {
     if (!this.rpc) throw new Error('Not connected');
+    // The dispatchCommand RPC payload IS the command (not wrapped in { command })
     return this.rpc.request('orchestration.dispatchCommand', command);
   }
 
@@ -248,12 +230,17 @@ export class T3Client {
     });
   }
 
+  // ── Queries ──────────────────────────────────────────────────────
+
+  async getSnapshot(): Promise<T3ShellSnapshot | null> {
+    if (!this.rpc) return null;
+    return this.rpc.request<T3ShellSnapshot>('orchestration.getSnapshot');
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────
 
   disconnect() {
-    this.shellSub?.cancel();
-    for (const sub of this.threadSubs.values()) sub.cancel();
-    this.threadSubs.clear();
+    this.domainEventSub?.cancel();
     this.rpc?.disconnect();
     this.rpc = null;
     this.onConnectionChange?.(false);

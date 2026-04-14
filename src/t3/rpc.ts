@@ -1,5 +1,15 @@
 // ── T3Code WebSocket RPC Client ─────────────────────────────────────
 // Implements the Effect RPC wire protocol used by T3Code's server.
+//
+// Client → Server:
+//   { _tag: "Request", id: "1", tag: "method.name", payload: {...} }
+//   { _tag: "Ping" }
+//
+// Server → Client:
+//   { _tag: "Chunk", requestId: "1", values: [...] }
+//   { _tag: "Exit", requestId: "1", exit: { _tag: "Success", value: ... } }
+//   { _tag: "Defect", defect: ... }
+//   { _tag: "Pong" }
 
 type RequestId = string;
 
@@ -31,23 +41,15 @@ export class T3Rpc {
 
   connect(): Promise<void> {
     // Detect mixed-content before attempting the connection.
-    // HTTPS pages cannot open ws:// sockets — browsers block it.
     if (
       typeof location !== 'undefined' &&
       location.protocol === 'https:' &&
       this.wsUrl.startsWith('ws://')
     ) {
-      const parsed = new URL(this.wsUrl.replace(/^ws/, 'http'));
-      const port = parsed.port || '3773';
       return Promise.reject(
         new Error(
-          `Mixed content blocked: this page is served over HTTPS but the ` +
-          `T3Code server at ${parsed.host} is plain HTTP. ` +
-          `Browsers do not allow insecure WebSocket (ws://) connections from ` +
-          `secure pages.\n\n` +
-          `Fix: expose T3Code over HTTPS with Tailscale Funnel:\n` +
-          `  tailscale funnel --bg ${port}\n` +
-          `Then connect using your https://<machine>.ts.net URL.`,
+          `Mixed content blocked: HTTPS page cannot open ws:// WebSocket. ` +
+          `Use Tailscale Funnel for HTTPS.`,
         ),
       );
     }
@@ -79,8 +81,6 @@ export class T3Rpc {
       this.ws.onclose = () => {
         this.stopPing();
         this.onDisconnect?.();
-        // Only attempt reconnect if we connected successfully before.
-        // Failed initial connections (wrong URL, SSL errors) should not retry.
         if (connected) {
           this.attemptReconnect();
         }
@@ -106,7 +106,7 @@ export class T3Rpc {
         resolve: resolve as (v: unknown) => void,
         reject,
       });
-      this.send({ _tag: 'Request', id, tag, payload });
+      this.send({ _tag: 'Request', id, tag, payload, headers: [] });
     });
   }
 
@@ -122,7 +122,6 @@ export class T3Rpc {
     return {
       id,
       cancel: () => {
-        this.send({ _tag: 'Interrupt', requestId: id, interruptors: ['user'] });
         this.pending.delete(id);
       },
     };
@@ -152,16 +151,15 @@ export class T3Rpc {
       case 'Pong':
         break;
 
-      case 'ResponseChunk': {
+      case 'Chunk': {
         const req = this.pending.get(msg.requestId as string);
         if (req?.onChunk) {
           req.onChunk(msg.values as unknown[]);
-          this.send({ _tag: 'Ack', requestId: msg.requestId });
         }
         break;
       }
 
-      case 'ResponseExit': {
+      case 'Exit': {
         const id = msg.requestId as string;
         const req = this.pending.get(id);
         if (req) {
@@ -176,13 +174,9 @@ export class T3Rpc {
         break;
       }
 
-      case 'ResponseDefect': {
-        const id = msg.requestId as string;
-        const req = this.pending.get(id);
-        if (req) {
-          this.pending.delete(id);
-          req.reject(new Error('Server defect'));
-        }
+      case 'Defect': {
+        // Server-level defect — not tied to a specific request
+        console.warn('T3Code server defect:', msg.defect);
         break;
       }
     }

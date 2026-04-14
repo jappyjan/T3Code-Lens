@@ -157,20 +157,16 @@ export const useAppStore = create<AppState>()(
 
           t3.onShellUpdate = (snapshot) => {
             set({
-              projects: snapshot.projects.filter((p) => !p.deletedAt),
-              threads: snapshot.threads.filter((t) => !t.deletedAt),
+              projects: (snapshot.projects ?? []).filter((p: T3Project) => !p.deletedAt),
+              threads: (snapshot.threads ?? []).filter((t: T3Thread) => !t.deletedAt),
             });
           };
 
-          t3.onThreadEvent = (threadId, events) => {
-            if (threadId !== get().selectedThreadId) return;
-            for (const event of events) {
-              processThreadEvent(event, set, get);
-            }
+          t3.onDomainEvent = (event) => {
+            processDomainEvent(event, set, get);
           };
 
           await t3.connectWithToken(settings.serverUrl, settings.sessionToken);
-          t3.subscribeShell();
           set({ connected: true, connecting: false });
         } catch (err) {
           set({
@@ -194,24 +190,15 @@ export const useAppStore = create<AppState>()(
       },
 
       selectThread: (id) => {
+        const thread = get().threads.find((t) => t.id === id);
         set({
           selectedThreadId: id,
-          messages: [],
+          messages: thread?.messages ?? [],
           streamingText: '',
           pendingApproval: null,
+          interactionMode: thread?.interactionMode ?? 'default',
+          threadStatus: thread?.session?.status === 'running' ? 'running' : 'idle',
         });
-
-        if (t3) {
-          t3.subscribeThread(id);
-          const thread = get().threads.find((t) => t.id === id);
-          if (thread) {
-            set({
-              messages: thread.messages ?? [],
-              interactionMode: thread.interactionMode ?? 'default',
-              threadStatus: thread.session?.status === 'running' ? 'running' : 'idle',
-            });
-          }
-        }
       },
 
       navigateTo: (screen, intent) => {
@@ -372,15 +359,56 @@ export const useAppStore = create<AppState>()(
   ),
 );
 
-// ── Thread Event Processing ────────────────────────────────────────
-// Called for each event received from T3Code's thread subscription.
+// ── Domain Event Processing ───────────────────────────────────────
+// Called for each push event on the orchestration.domainEvent channel.
+// Updates projects, threads, messages, and thread state.
 
 type Setter = (fn: (s: AppState) => Partial<AppState>) => void;
 type Getter = () => AppState;
 
-function processThreadEvent(event: unknown, set: Setter, get: Getter) {
+function processDomainEvent(event: unknown, set: Setter, get: Getter) {
   const e = event as Record<string, unknown>;
-  const tag = (e._tag ?? e.type ?? '') as string;
+  const eventType = (e.type ?? '') as string;
+  const payload = (e.payload ?? e) as Record<string, unknown>;
+
+  switch (eventType) {
+    // ── Project events → reload snapshot ───────────────────────
+    case 'project.created':
+    case 'project.meta-updated':
+    case 'project.deleted':
+    case 'thread.created':
+    case 'thread.deleted':
+    case 'thread.archived':
+    case 'thread.unarchived':
+    case 'thread.meta-updated': {
+      // Reload the full snapshot to get updated projects/threads
+      if (t3) {
+        t3.getSnapshot().then((snapshot) => {
+          if (snapshot) {
+            set(() => ({
+              projects: (snapshot.projects ?? []).filter((p: T3Project) => !p.deletedAt),
+              threads: (snapshot.threads ?? []).filter((t: T3Thread) => !t.deletedAt),
+            }));
+          }
+        });
+      }
+      break;
+    }
+
+    // ── Thread-specific events → forward to thread processor ──
+    default:
+      processThreadEvent(payload, set, get, eventType);
+      break;
+  }
+}
+
+function processThreadEvent(event: unknown, set: Setter, get: Getter, eventType?: string) {
+  const e = event as Record<string, unknown>;
+  const tag = eventType || (e._tag ?? e.type ?? '') as string;
+
+  // Only process thread events for the currently selected thread
+  const threadId = e.threadId as string | undefined;
+  if (threadId && threadId !== get().selectedThreadId) return;
 
   switch (tag) {
     // ── Messages ───────────────────────────────────────────────
