@@ -139,23 +139,27 @@ async function startOnlineSTT(
   // Dynamic import — only pulled when an online provider is selected
   const sttMod = await import('even-toolkit/stt');
 
-  const provider = sttMod.createProvider(opts.provider, {
+  const engine = new sttMod.STTEngine({
+    provider: opts.provider,
     apiKey: opts.apiKey,
     language: opts.language,
+    source: 'microphone',
   });
 
-  const engine = new sttMod.STTEngine({
-    provider,
-    onTranscript: (result: { text: string; isFinal: boolean }) => {
-      if (result.isFinal) {
-        callbacks.onTranscript(result.text);
-      } else {
-        callbacks.onInterim(result.text);
-      }
-    },
-    onError: (err: { message?: string }) =>
-      callbacks.onError(err.message ?? 'STT error'),
-    onEnd: callbacks.onEnd,
+  engine.onTranscript((result) => {
+    if (result.isFinal) {
+      callbacks.onTranscript(result.text);
+    } else {
+      callbacks.onInterim(result.text);
+    }
+  });
+
+  engine.onError((err) => callbacks.onError(err.message ?? 'STT error'));
+
+  engine.onStateChange((state) => {
+    if (state === 'idle' || state === 'error') {
+      callbacks.onEnd();
+    }
   });
 
   await engine.start();
