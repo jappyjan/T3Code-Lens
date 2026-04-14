@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Card, Button, Input, Select, SettingsGroup, SectionHeader, NavHeader } from 'even-toolkit/web';
+import { AppShell, Card, Button, Input, Select, SettingsGroup, SectionHeader, NavHeader, Divider, Toast } from 'even-toolkit/web';
 import { useAppStore } from '../store';
 import type { STTProvider } from '../stt/use-voice-input';
 import type { RuntimeMode } from '../t3/types';
@@ -32,9 +32,8 @@ export function SettingsPage() {
   // ── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4">
-      <div className="max-w-md mx-auto space-y-6 pb-8">
-        {/* Header */}
+    <AppShell
+      header={
         <NavHeader
           title="Settings"
           left={
@@ -43,7 +42,9 @@ export function SettingsPage() {
             </Button>
           }
         />
-
+      }
+    >
+      <div className="px-3 pt-4 pb-8 space-y-4">
         {/* ── T3Code Server ─────────────────────────────────────── */}
         <SectionHeader title="T3Code Server" />
 
@@ -51,11 +52,12 @@ export function SettingsPage() {
           <div className="space-y-3">
             {/* Quick-start instructions */}
             <Card>
-              <p className="text-xs text-gray-400 mb-2">
+              <p className="text-detail mb-2">
                 Run this on your T3Code machine to start everything:
               </p>
               <code
-                className="block bg-gray-950 rounded px-2 py-2 text-xs text-green-400 font-mono select-all break-all leading-relaxed cursor-pointer"
+                className="block rounded px-2 py-2 text-detail font-mono select-all break-all leading-relaxed cursor-pointer"
+                style={{ background: 'var(--color-input-bg)' }}
                 onClick={() => {
                   navigator.clipboard?.writeText(START_CMD);
                   setStatus('Copied to clipboard!');
@@ -65,17 +67,13 @@ export function SettingsPage() {
               >
                 {START_CMD}
               </code>
-              <p className="text-xs text-gray-600 mt-2">
+              <p className="text-detail mt-2">
                 Click to copy. It starts T3Code, the CORS proxy, and a
                 Tailscale Funnel, then shows the server URL and session token.
               </p>
             </Card>
 
-            <div className="flex items-center gap-3 text-xs text-gray-600">
-              <div className="flex-1 border-t border-gray-800" />
-              <span>then enter the details shown</span>
-              <div className="flex-1 border-t border-gray-800" />
-            </div>
+            <Divider />
 
             {/* Connection fields */}
             <SettingsGroup label="Server URL (https://)">
@@ -89,12 +87,10 @@ export function SettingsPage() {
 
             {/* Mixed-content warning */}
             {serverUrl.startsWith('http://') && location.protocol === 'https:' && (
-              <Card className="border border-yellow-900 bg-yellow-950">
-                <p className="text-xs text-yellow-400">
-                  <strong>HTTPS required.</strong> Use the start script above &mdash;
-                  it sets up an HTTPS tunnel automatically.
-                </p>
-              </Card>
+              <Toast
+                variant="warning"
+                message="HTTPS required. Use the start script above — it sets up an HTTPS tunnel automatically."
+              />
             )}
 
             <SettingsGroup label="Session Token">
@@ -116,13 +112,13 @@ export function SettingsPage() {
             </Button>
 
             {status && (
-              <p className="text-xs text-gray-400 text-center">{status}</p>
+              <p className="text-detail text-center">{status}</p>
             )}
           </div>
         ) : (
           <Card>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-green-400">Connected</span>
+              <span className="text-subtitle">Connected</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -131,7 +127,7 @@ export function SettingsPage() {
                 Disconnect
               </Button>
             </div>
-            <p className="text-xs text-gray-600 truncate mt-1">{settings.serverUrl}</p>
+            <p className="text-detail truncate mt-1">{settings.serverUrl}</p>
           </Card>
         )}
 
@@ -227,6 +223,6 @@ export function SettingsPage() {
           />
         </SettingsGroup>
       </div>
-    </div>
+    </AppShell>
   );
 }

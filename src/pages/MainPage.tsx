@@ -3,8 +3,8 @@
 // All real interaction happens on the glasses display.
 
 import { useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router';
-import { Card, Badge, Button, ScreenHeader } from 'even-toolkit/web';
+import { useNavigate } from 'react-router';
+import { AppShell, Card, Badge, Button, ScreenHeader, StatusDot, SectionHeader } from 'even-toolkit/web';
 import { useAppStore } from '../store';
 import { useGlassesController } from '../glass/controller';
 import { createScreenRouter } from '../glass/selectors';
@@ -13,6 +13,7 @@ import type { ScreenContext } from '../glass/shared';
 
 export function MainPage() {
   const store = useAppStore();
+  const navigate = useNavigate();
   const {
     connected, connecting, connectionError,
     currentScreen, isRecording, settings,
@@ -84,21 +85,21 @@ export function MainPage() {
   // ── Render (phone status view) ───────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-4">
-      <div className="max-w-md mx-auto space-y-4">
-        {/* Header */}
-        <ScreenHeader title="T3Code Lens" subtitle="Smart Glasses Coding Assistant" />
-
+    <AppShell header={<ScreenHeader title="T3Code Lens" subtitle="Smart Glasses Coding Assistant" />}>
+      <div className="px-3 pt-4 pb-8 space-y-3">
         {/* Connection */}
         <Card>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">Server</span>
+            <div className="flex items-center gap-2">
+              <StatusDot connected={connected} />
+              <span className="text-normal-title">Server</span>
+            </div>
             <Badge variant={connected ? 'positive' : 'negative'}>
               {connecting ? 'Connecting...' : connected ? 'Connected' : 'Disconnected'}
             </Badge>
           </div>
           {(connectionError || settings.serverUrl) && (
-            <p className="text-xs text-gray-600 mt-1.5 truncate">
+            <p className="text-detail truncate mt-1">
               {connectionError ?? settings.serverUrl}
             </p>
           )}
@@ -107,10 +108,10 @@ export function MainPage() {
         {/* Current state */}
         <Card>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">Screen</span>
+            <span className="text-normal-title">Screen</span>
             <Badge variant="accent">{currentScreen}</Badge>
           </div>
-          <p className="text-xs text-gray-600 mt-1.5 truncate">
+          <p className="text-detail truncate mt-1">
             {[
               currentProject && `Project: ${currentProject.title}`,
               currentThread && `Thread: ${currentThread.title}`,
@@ -122,13 +123,13 @@ export function MainPage() {
 
         {/* Recording indicator */}
         {isRecording && (
-          <Card className="border border-red-800 bg-red-950">
+          <Card>
             <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+              <span className="animate-pulse-dot" />
               <div>
-                <span className="text-sm font-medium text-red-300">Recording</span>
+                <span className="text-normal-title">Recording</span>
                 {voice.error && (
-                  <p className="text-xs text-red-400 mt-0.5">{voice.error}</p>
+                  <p className="text-detail mt-0.5">{voice.error}</p>
                 )}
               </div>
             </div>
@@ -136,15 +137,15 @@ export function MainPage() {
         )}
 
         {/* Gesture guide */}
+        <SectionHeader title="Glasses Controls" />
         <Card>
-          <p className="text-sm font-medium text-gray-400 mb-2">Glasses Controls</p>
-          <div className="text-xs text-gray-500 space-y-1.5">
+          <div className="text-detail space-y-1.5">
             <p>Scroll up/down &mdash; Navigate lists / scroll content</p>
             <p>Single tap &mdash; Select item / start dictation</p>
             <p>Double tap &mdash; Go back</p>
             {currentScreen === 'dictate' && (
               <>
-                <p className="mt-2 text-gray-400 font-medium">Dictation</p>
+                <p className="text-subtitle mt-2">Dictation</p>
                 <p>Tap &mdash; Send message</p>
                 <p>Scroll &mdash; Toggle Chat/Plan mode</p>
                 <p>Double tap &mdash; Cancel</p>
@@ -154,12 +155,10 @@ export function MainPage() {
         </Card>
 
         {/* Settings link */}
-        <Link to="/settings">
-          <Button variant="secondary" className="w-full">
-            Settings
-          </Button>
-        </Link>
+        <Button variant="secondary" className="w-full" onClick={() => navigate('/settings')}>
+          Settings
+        </Button>
       </div>
-    </div>
+    </AppShell>
   );
 }

@@ -1,12 +1,7 @@
 @import 'even-toolkit/web/theme-dark.css';
 @import 'even-toolkit/web/typography.css';
+@import 'even-toolkit/web/utilities.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
