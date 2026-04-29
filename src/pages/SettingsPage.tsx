@@ -5,8 +5,6 @@ import { useAppStore } from '../store';
 import type { STTProvider } from '../stt/use-voice-input';
 import type { RuntimeMode } from '../t3/types';
 
-const START_CMD = 'bash <(curl -fsSL https://raw.githubusercontent.com/jappyjan/T3Code-Lens/main/start.sh)';
-
 const STT_PROVIDERS = [
   { value: 'local', label: 'Local (Web Speech API)' },
   { value: 'deepgram', label: 'Deepgram (Cloud)' },
@@ -70,31 +68,6 @@ export function SettingsPage() {
         <SettingsGroup label="T3Code Server">
           {!settings.sessionToken ? (
             <>
-              {/* Quick-start instructions */}
-              <div className="px-4 py-3 space-y-2">
-                <p className="text-[13px] tracking-[-0.13px] text-text-dim">
-                  Run this on your T3Code machine:
-                </p>
-                <Card
-                  padding="sm"
-                  className="cursor-pointer"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(START_CMD);
-                    setStatus('Copied!');
-                    setTimeout(() => setStatus(''), 2000);
-                  }}
-                >
-                  <code className="text-[11px] font-mono break-all leading-relaxed select-all">
-                    {START_CMD}
-                  </code>
-                </Card>
-                <p className="text-[11px] tracking-[-0.11px] text-text-dim">
-                  Tap to copy. It starts T3Code + HTTPS tunnel.
-                </p>
-              </div>
-
-              <Divider />
-
               {/* Server URL */}
               <div className="px-4 py-3 space-y-1.5">
                 <span className="text-[13px] tracking-[-0.13px] text-text-dim">Server URL</span>

@@ -5,23 +5,6 @@ Connects to a headless [T3Code](https://github.com/pingdotgg/t3code) instance an
 
 **App:** [jappyjan.github.io/T3Code-Lens](https://jappyjan.github.io/T3Code-Lens/)
 
-## Quick Start
-
-On your T3Code machine, run:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/jappyjan/T3Code-Lens/main/start.sh)
-```
-
-This single command:
-1. Starts T3Code (`t3 serve --host 0.0.0.0`)
-2. Starts a CORS proxy (needed for cross-origin browser connections)
-3. Starts a Tailscale Funnel (HTTPS tunnel)
-4. Generates a session token
-5. Prints the server URL, token, and a QR code
-
-Then open the [app](https://jappyjan.github.io/T3Code-Lens/), go to **Settings**, and paste the server URL and session token.
-
 ### Requirements
 
 - [Node.js](https://nodejs.org) >= 18 (T3Code is run via `npx t3`)
